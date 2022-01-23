@@ -113,10 +113,13 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         dataset = LoadStreams(source, img_size=imgsz, stride=stride, auto=pt)
         fps = dataset.fps[0]
         bs = len(dataset)  # batch_size
+        stream = True
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride, auto=pt)
         bs = 1  # batch_size
         fps = dataset.cap.get(cv2.CAP_PROP_FPS)
+        stream = False
+
         
     vid_path, vid_writer = [None] * bs, [None] * bs
 
@@ -215,10 +218,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                             save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
 
-            # for video
-            frame_num = dataset.frame
-            # for stream
-            # frame_num = dataset.count
+
+            frame_num = dataset.count if stream else dataset.frame
             
             inspector.process_detections(frame_num=frame_num, detections=detections)
 

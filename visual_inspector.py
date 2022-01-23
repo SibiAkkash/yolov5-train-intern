@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from pathlib import Path
 import cv2
-import mysql.connector
+# import mysql.connector
 
 
 def is_object_present(detections: List[int], object_id: int):
