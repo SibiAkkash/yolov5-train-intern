@@ -220,6 +220,11 @@ class LoadImages:
             assert img0 is not None, f'Image Not Found {path}'
             s = f'image {self.count}/{self.nf} {path}: '
 
+        # rotate img
+        # im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        # resize img
+        img0 = cv2.resize(img0, (540, 960))
+        
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride, auto=self.auto)[0]
 
@@ -335,6 +340,12 @@ class LoadStreams:
             if n % read == 0:
                 success, im = cap.retrieve()
                 if success:
+
+                    # rotate img
+                    im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    # resize img
+                    im = cv2.resize(im, (540, 960))
+
                     self.imgs[i] = im
                 else:
                     LOGGER.warning('WARNING: Video stream unresponsive, please check your IP camera connection.')

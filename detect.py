@@ -33,6 +33,10 @@ import cv2
 import torch
 import torch.backends.cudnn as cudnn
 
+from visual_inspector import VisualInspector
+
+
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -45,6 +49,10 @@ from utils.general import (LOGGER, check_file, check_img_size, check_imshow, che
                            increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
+
+
+ENTRY_LINE_Y = 200
+EXIT_LINE_Y = 700
 
 
 @torch.no_grad()
@@ -103,15 +111,30 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         view_img = check_imshow()
         cudnn.benchmark = True  # set True to speed up constant image size inference
         dataset = LoadStreams(source, img_size=imgsz, stride=stride, auto=pt)
+        fps = dataset.fps[0]
         bs = len(dataset)  # batch_size
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride, auto=pt)
         bs = 1  # batch_size
+        fps = dataset.cap.get(cv2.CAP_PROP_FPS)
+        
     vid_path, vid_writer = [None] * bs, [None] * bs
+
+
+    print(names) # ['horn', 'speedo', 'exposed_fork', 'torque_tool_hanging', 'torque_tool_inserted', 'ball_bearing_tool', 'QR_code_scanner', 'wheel_with_fender']
+    inspector = VisualInspector(
+        start_marker_object_id=1,
+        end_marker_object_id=0,
+        marker_names=names,
+        entry_line_y=ENTRY_LINE_Y,
+        exit_line_y=EXIT_LINE_Y,
+        stream_fps=fps
+    )
 
     # Run inference
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
     dt, seen = [0.0, 0.0, 0.0], 0
+
     for path, im, im0s, vid_cap, s in dataset:
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
@@ -151,6 +174,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
+
+
+            detections = []
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
@@ -160,8 +187,20 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
+                
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
+
+                    x1, y1, x2, y2 = map(lambda t: int(t.item()), xyxy)
+                    # coords_str = f'{x1, y1}, {x2, y2}'
+                    # class_name = names[int(cls.item())]
+                    # print(f'{class_name} {round(conf.item(), 4)}: {coords_str}')
+
+                    # class id: (x1, y1, x2, y2)
+                    # detections[int(cls.item())] = x1, y1, x2, y2
+                    detections.append((int(cls.item()), x1, y1, x2, y2))
+
+
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
                         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
@@ -175,6 +214,14 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                         if save_crop:
                             save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
+
+            # for video
+            frame_num = dataset.frame
+            # for stream
+            # frame_num = dataset.count
+            
+            inspector.process_detections(frame_num=frame_num, detections=detections)
+
             # Print time (inference-only)
             LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
 
@@ -182,7 +229,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             im0 = annotator.result()
             if view_img:
                 cv2.imshow(str(p), im0)
-                cv2.waitKey(1)  # 1 millisecond
+                cv2.waitKey(1)
 
             # Save results (image with detections)
             if save_img:
@@ -248,7 +295,7 @@ def parse_opt():
 
 
 def main(opt):
-    check_requirements(exclude=('tensorboard', 'thop'))
+    # check_requirements(exclude=('tensorboard', 'thop'))
     run(**vars(opt))
 
 
