@@ -51,9 +51,6 @@ from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
 
 
-ENTRY_LINE_Y = 200
-EXIT_LINE_Y = 700
-
 
 @torch.no_grad()
 def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
@@ -124,10 +121,14 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     vid_path, vid_writer = [None] * bs, [None] * bs
 
 
-    print(names) # ['horn', 'speedo', 'exposed_fork', 'torque_tool_hanging', 'torque_tool_inserted', 'ball_bearing_tool', 'QR_code_scanner', 'wheel_with_fender']
+    # print(names) # ['horn', 'speedo', 'exposed_fork', 'torque_tool_hanging', 'torque_tool_inserted', 'ball_bearing_tool', 'QR_code_scanner', 'wheel_with_fender']
+    
+    ENTRY_LINE_Y = 100
+    EXIT_LINE_Y = 600
+
     inspector = VisualInspector(
-        start_marker_object_id=1,
-        end_marker_object_id=0,
+        start_marker_object_id=names.index('speedo'),
+        end_marker_object_id=names.index('horn'),
         marker_names=names,
         entry_line_y=ENTRY_LINE_Y,
         exit_line_y=EXIT_LINE_Y,
@@ -221,13 +222,39 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
             frame_num = dataset.count if stream else dataset.frame
             
-            inspector.process_detections(frame_num=frame_num, detections=detections)
+            inspector.process_detections_2(
+                frame_num=frame_num, 
+                detections=detections, 
+                current_frame=im0
+            )
 
             # Print time (inference-only)
-            LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
+            # LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
 
             # Stream results
             im0 = annotator.result()
+
+
+            H, W, _ = im0.shape
+            BUFFER = 30
+            # top line
+            cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 1)            
+            cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
+            # cv2.rectangle(
+            #     img=im0, 
+            #     pt1=(0, ENTRY_LINE_Y - BUFFER), 
+            #     pt2=(W, ENTRY_LINE_Y + BUFFER),
+            #     color=(0, 50, 0),
+            #     thickness=-1
+            # )
+
+            # bottom line
+            cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
+
+
             if view_img:
                 cv2.imshow(str(p), im0)
                 cv2.waitKey(1)
