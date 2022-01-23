@@ -13,6 +13,8 @@ import cv2
 
 from dataclasses import dataclass, field
 
+from helpers import get_time_elapsed_ms, get_time_from_frame
+
 
 def is_object_present(detections: List[int], object_id: int):
     return object_id in detections
@@ -70,15 +72,15 @@ class VisualInspector:
             "cycle_start_frame_num": 0,
             "cycle_end_frame_num": 0,
 
-            "marker_frame_numbers": {i: (-1, -1) for i in range(len(self.marker_names))}
+            "marker_frame_nums": {i: (-1, -1) for i in range(len(self.marker_names))}
 
         }
 
     def get_frame_nums_of_object(self, obj_id: int):
-        return self.state["marker_frame_numbers"][obj_id]
+        return self.state["marker_frame_nums"][obj_id]
 
     def set_frame_nums_of_object(self, obj_id: int, first_seen: int, last_seen: int):
-        self.state["marker_frame_numbers"][obj_id] = (first_seen, last_seen)
+        self.state["marker_frame_nums"][obj_id] = (first_seen, last_seen)
 
 
     def _handle_cycle_start(self, frame_num: int):
@@ -99,84 +101,21 @@ class VisualInspector:
 
         pprint(self.state)
 
+        for obj_id, (first_seen, last_seen) in self.state["marker_frame_nums"].items():
+            if obj_id != self.start_marker_object_id and obj_id != self.end_marker_object_id:
+                time_elapsed = get_time_elapsed_ms(first_seen, last_seen, self.stream_fps)
+                
+                print(f'''
+                    {self.marker_names[obj_id]}: 
+                    first_seen: {get_time_from_frame(first_seen, self.stream_fps)}, 
+                    last_seen: {get_time_from_frame(last_seen, self.stream_fps)}, 
+                '''
+                )
+
         self.refresh_state()
 
     def cycle_started(self):
         return self.state["cycle_started"]
-
-    def _process_start_markers(self, frame, detections, current_frame):
-        num_start_inside = 0
-        num_end_outside = 0
-
-        for obj_id, x1, y1, x2, y2 in detections:
-            if obj_id == self.start_marker_object_id:
-                if y1 >= self.entry_line_y:
-                    num_start_inside += 1
-
-            if obj_id == self.end_marker_object_id:
-                if y2 >= self.exit_line_y:
-                    num_end_outside += 1
-
-        print(f'active cycles: {num_start_inside - num_end_outside}')
-        cv2.putText(
-            img=current_frame,
-            text=f"speedo in: {num_start_inside}, horn out: {num_end_outside}",
-            org=(30, 40),
-            color=(0, 255, 0),
-            fontFace=0,
-            fontScale=1,
-            thickness=2
-        )
-
-    def process_detections(
-        self,
-        detections: Dict[int, Tuple[int, int, int, int]],
-        frame_num: int,
-        current_frame: npt.NDArray = None,
-    ):
-        # ASSUMING ONLY ONE SPEEDO INSIDE LINES
-        # ASSUMING HORN LEAVES BOTTOM BEFORE ANOTHER SPEEDO ENTERS
-
-
-        if not self.cycle_started():
-        
-            closest_speedo_y = self.get_object_closest_to_line(
-                detections=detections,
-                object_id=self.start_marker_object_id,
-                line_y=self.entry_line_y,
-                check_top=True
-            )
-
-            if closest_speedo_y >= self.entry_line_y and self.is_speedo_above_line:
-                # speedo has come in
-                self.is_speedo_above_line = False
-
-
-                self._handle_cycle_start(frame_num=frame_num)
-
-                # for the next cycle
-                self.is_horn_inside_line = True
-                return
-
-     
-        closest_horn_y = self.get_object_closest_to_line(
-                            detections=detections,
-                            object_id=self.end_marker_object_id,
-                            line_y=self.exit_line_y,
-                            check_top=False
-                        )
-
-        if closest_horn_y >= self.exit_line_y and self.is_horn_inside_line:
-            # horn out
-            self.is_horn_inside_line = False
-
-            self._handle_cycle_end(frame_num=frame_num)
-
-            self.num_cycles_seen += 1
-
-            # for the next cycle
-            self.is_speedo_above_line = True
-            return
 
     def get_object_closest_to_line(self, detections, object_id, line_y, check_top=True, buffer=30):
         min_diff = float('inf')
@@ -213,7 +152,7 @@ class VisualInspector:
 
     
     def _process_other_markers(self, frame_num, detections):
-        for obj_id, x1, y1, x2, y2 in detections:
+        for obj_id, *xyxy in detections:
             if obj_id != self.start_marker_object_id and obj_id != self.end_marker_object_id:
                 
                 first_seen, _ = self.get_frame_nums_of_object(obj_id)
@@ -239,7 +178,7 @@ class VisualInspector:
     # wait for horn inside lines to change state
     # horn state changed
     # loop to step 3
-    def process_detections_2(
+    def process_detections(
             self,
             detections: Dict[int, Tuple[int, int, int, int]],
             frame_num: int,
@@ -250,14 +189,15 @@ class VisualInspector:
                             detections=detections,
                             object_id=self.end_marker_object_id,
                             line_y=self.exit_line_y,
-                            check_top=False
+                            check_top=False,
+                            buffer=70
                         )
             # no horn found, return
             if closest_horn_y == -1:
                 return
 
+            # horn crossed
             if closest_horn_y >= self.exit_line_y and self.is_horn_inside_line:
-                # horn crossed
                 print("FIRST HORN LEFT")
                 print(f'{closest_horn_y = }, {self.exit_line_y = }')
                 self.is_horn_inside_line = False
@@ -285,8 +225,8 @@ class VisualInspector:
                 if closest_speedo_y == -1:
                     return
 
+                # speedo crossed
                 if closest_speedo_y >= self.entry_line_y and self.is_speedo_above_line:
-                    # speedo crossed
                     print("SPEEDO ENTERED")
                     print(f'{closest_speedo_y = }, {self.entry_line_y = }')
                     self.is_speedo_above_line = False
@@ -319,29 +259,31 @@ class VisualInspector:
                 if inside_horn_y == -1:
                     print('waiting to find inside horn...')
                     return
+                
+                # we've found a horn inside, set state
                 else:
-                    # we've found a horn inside, set state
-                    # set inside_line to True, only then we can observe state change
                     print("INSIDE HORN FOUND")
                     print(f'{inside_horn_y = }, {self.entry_line_y = }, {self.exit_line_y = }')
                     self.found_inside_horn = True
-                    
+                    # set inside_line to True, only then we can observe state change    
                     self.is_horn_inside_line = True
                     return
+            
+            # found inside horn, wait for state change
             else:
-                # found inside horn, wait for state change
                 closest_horn_y = self.get_object_closest_to_line(
                             detections=detections,
                             object_id=self.end_marker_object_id,
                             line_y=self.exit_line_y,
-                            check_top=False
+                            check_top=False,
+                            buffer=70
                         )
                 # no horn found in this frame, return
                 if closest_horn_y == -1:
                     return
 
+                # horn crossed
                 if closest_horn_y >= self.exit_line_y and self.is_horn_inside_line:
-                    # horn crossed
                     print("HORN LEFT")
                     print(f'{closest_horn_y = }, {self.exit_line_y = }')
                     self.is_horn_inside_line = False
@@ -349,6 +291,8 @@ class VisualInspector:
                     self._handle_cycle_end(frame_num=frame_num)
                     
                     self.waiting_for_speedo = True
+                    self.waiting_for_horn = False
+                    
                     self.is_speedo_above_line = True
 
                 else:

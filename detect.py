@@ -117,6 +117,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         fps = dataset.cap.get(cv2.CAP_PROP_FPS)
         stream = False
 
+    print(f'{fps = }')
+
         
     vid_path, vid_writer = [None] * bs, [None] * bs
 
@@ -222,7 +224,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
             frame_num = dataset.count if stream else dataset.frame
             
-            inspector.process_detections_2(
+            inspector.process_detections(
                 frame_num=frame_num, 
                 detections=detections, 
                 current_frame=im0
@@ -239,7 +241,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             BUFFER = 30
             # top line
             cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
-            cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 1)            
+            cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
             cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
             # cv2.rectangle(
             #     img=im0, 
