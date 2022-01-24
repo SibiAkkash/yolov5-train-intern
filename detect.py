@@ -140,7 +140,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     )
 
     # to draw plots
-    fig, ax = plt.subplots(2, 1, figsize=(16, 6))
+    fig, ax = plt.subplots(2, 1, figsize=(16, 12))
     num_cycles = 0
 
     # Run inference
@@ -246,9 +246,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             H, W, _ = im0.shape
             BUFFER = 30
             # top line
-            # cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
-            # cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
-            # cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
+            cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
+            
             # cv2.rectangle(
             #     img=im0, 
             #     pt1=(0, ENTRY_LINE_Y - BUFFER), 
@@ -258,20 +259,24 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             # )
 
             # bottom line
-            # cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
-            # cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
-            # cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
 
 
             if view_img:
-                plot_img = plot_to_img(fig, ax, num_cycles)
-                ph, pw, _ = plot_img.shape # 600, 1600
-                plot_img = cv2.resize(plot_img, (900, 640))
+                plot_img = inspector.plot_cycles(fig, ax)
+                # plot_img = plot_to_img(fig, ax, num_cycles)
+                # ph, pw, _ = plot_img.shape # 600, 1600
+                plot_img = cv2.resize(plot_img, (900, 960))
+                # plot_img = cv2.resize(plot_img, (900, 640))
 
-                # stack stream and plot vertically
+                # # stack stream and plot vertically
                 stacked = np.hstack((im0, plot_img))
 
                 cv2.imshow(str(p), stacked)
+
+                # cv2.imshow(str(p), im0)
                 
                 key = cv2.waitKey(5)
                 if key == ord('q'):
@@ -281,7 +286,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 if key == ord('e'):
                     num_cycles += 1
                     print(f'{num_cycles = }')
-                    plot_img = plot_to_img(fig, ax, num_cycles)
 
 
             # Save results (image with detections)

@@ -223,8 +223,8 @@ class LoadImages:
         # rotate img
         # im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
         # resize img
-        # img0 = cv2.resize(img0, (540, 960))
-        img0 = cv2.resize(img0, (360, 640))
+        img0 = cv2.resize(img0, (540, 960))
+        # img0 = cv2.resize(img0, (360, 640))
         
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride, auto=self.auto)[0]
@@ -345,8 +345,8 @@ class LoadStreams:
                     # rotate img
                     im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
                     # resize img
-                    # im = cv2.resize(im, (540, 960))
-                    im = cv2.resize(im, (360, 640))
+                    im = cv2.resize(im, (540, 960))
+                    # im = cv2.resize(im, (360, 640))
 
 
                     self.imgs[i] = im

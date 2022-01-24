@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from typing import Dict, List, Tuple
-
-# from helpers import get_time_elapsed_ms, get_random_string
 from pprint import pprint
 import numpy as np
 import numpy.typing as npt
 from pathlib import Path
-
+import copy
 from dataclasses import dataclass, field
-
-from helpers import get_time_elapsed_ms, get_time_from_frame
+from helpers import get_time_elapsed_ms, get_time_from_frame, plot_last_2_cycles
 
 
 def is_object_present(detections: List[int], object_id: int):
@@ -60,6 +57,8 @@ class VisualInspector:
 
         self.found_inside_horn = False
 
+        self.cycle_cache = []
+
         self.refresh_state()
 
     def refresh_state(self) -> None:
@@ -71,7 +70,9 @@ class VisualInspector:
             "cycle_start_frame_num": 0,
             "cycle_end_frame_num": 0,
 
-            "marker_frame_nums": {i: (-1, -1) for i in range(len(self.marker_names))}
+            "marker_frame_nums": {i: (-1, -1) for i in range(len(self.marker_names))},
+            "marker_frame_times": {i: (-1, -1) for i in range(len(self.marker_names))},
+            "marker_time_elapsed": [0 for i in range(len(self.marker_names))]
 
         }
 
@@ -79,17 +80,22 @@ class VisualInspector:
         return self.state["marker_frame_nums"][obj_id]
 
     def set_frame_nums_of_object(self, obj_id: int, first_seen: int, last_seen: int):
+        first_seen_time = get_time_from_frame(first_seen, self.stream_fps)
+        last_seen_time = get_time_from_frame(last_seen, self.stream_fps)
         self.state["marker_frame_nums"][obj_id] = (first_seen, last_seen)
+        self.state["marker_frame_times"][obj_id] = (first_seen_time, last_seen_time)
+
 
     def _handle_cycle_start(self, frame_num: int):
+        print("CYCLE STARTED")
         self.state["cycle_started"] = True
         self.state["cycle_start_frame_num"] = frame_num
 
-        # self.state["seen_objects"].append(self.start_marker_object_id)
-
-        print("CYCLE STARTED")
-        pprint(self.state)
-
+    def plot_cycles(self, fig, ax):
+        # call plot to get image
+        return plot_last_2_cycles(fig, ax, self.cycle_cache)
+        # return image
+    
     def _handle_cycle_end(self, frame_num: int):
         print("CYCLE ENDED")
         self.num_cycles_seen += 1
@@ -100,15 +106,24 @@ class VisualInspector:
         pprint(self.state)
 
         for obj_id, (first_seen, last_seen) in self.state["marker_frame_nums"].items():
-            if obj_id != self.start_marker_object_id and obj_id != self.end_marker_object_id:
-                time_elapsed = get_time_elapsed_ms(first_seen, last_seen, self.stream_fps)
-                
-                print(f'''
-                    {self.marker_names[obj_id]}: 
-                    first_seen: {get_time_from_frame(first_seen, self.stream_fps)}, 
-                    last_seen: {get_time_from_frame(last_seen, self.stream_fps)}, 
-                '''
-                )
+            time_elapsed = get_time_elapsed_ms(first_seen, last_seen, self.stream_fps)
+            self.state["marker_time_elapsed"][obj_id] = time_elapsed
+            
+            print(f'''
+                {self.marker_names[obj_id]}: 
+                first_seen: {get_time_from_frame(first_seen, self.stream_fps)}, 
+                last_seen: {get_time_from_frame(last_seen, self.stream_fps)}, 
+            '''
+            )
+
+        # cache to plot
+        # ignore first cycle
+        if self.num_cycles_seen > 1:
+            self.cycle_cache.append(copy.deepcopy(self.state))
+
+        # store only 2 cycles
+        if len(self.cycle_cache) > 2:
+            self.cycle_cache.pop(0)
 
         self.refresh_state()
 
@@ -146,9 +161,9 @@ class VisualInspector:
                 if self.entry_line_y < y_to_check < self.exit_line_y:
                     return y_to_check
 
+        print(f'{self.marker_names[object_id]} not found...')
         return -1
 
-    
     def _process_other_markers(self, frame_num, detections):
         for obj_id, *xyxy in detections:                
             first_seen, _ = self.get_frame_nums_of_object(obj_id)

@@ -47,50 +47,51 @@ def plot_to_img(fig, ax, num_cycles):
         'wheel_with_fender'
     ]
 
-    cyc_start = 1188
-    cyc_end = 4437
-
-    st = np.array([0, 0, 1206, 1486, 1406, 0, 3446, 1189])
-    ends = np.array([4437, 4437, 4437, 4437, 3184, 4437, 4432, 4437])
-    st_ends = ends - st
-
-    st_2 = np.array([ ])
-
     color_dict = {
         'horn':'#55415f',
         'speedo':'#d77355',
-        'tool hanging':'#508cd7',
-        'tool inserted':'#64b964',
-        'ball bearing tool':'#e6c86e',
-        'QR code scanner': '#000000',
-        'wheel with fender': '#9C0F48',
-        'exposed fork': '#646964'
+        'exposed fork': '#646964',
+        'torque_tool_hanging':'#508cd7',
+        'torque_tool_inserted':'#64b964',
+        'ball_bearing_tool':'#e6c86e',
+        'QR_code_scanner': '#000000',
+        'wheel_with_fender': '#9C0F48',
     }
 
     legend_elements = [
         Patch(facecolor=color_dict[i], label=i)  for i in color_dict
     ]
-    
-    # plt.legend(handles=legend_elements)
 
-    # assert(len(labels) == len(starts) == len(start_to_end_num))
     
-    if num_cycles > 0:
+    if num_cycles == 1:
         plt.subplot(211)
-        starts = [10.5, 2.56, 2.56, 2.56, 25.7, 3.56, 30.57, 1.2]
-        start_to_end_num = [12.3, 48.9, 48.9, 48.9, 35.8, 35, 35, 12]
+        starts = [10.5, 2.56, 2.56, 2.56, 25.7, 10.56, 30.57, 1.2]
+        start_to_end_num = [22.3, 48.9, 48.9, 48.9, 10.4, 5, 10, 22]
         ax[0].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
         ax[0].set_title("cycle 1")
+        ax[0].set_xlabel("Time in seconds")
+        # plt.xlabel("time in seconds")
 
-
-    if num_cycles > 1:
+    if num_cycles == 2:
+        # cycle 1
+        plt.subplot(211)
+        starts = [10.5, 2.56, 2.56, 2.56, 25.7, 10.56, 30.57, 1.2]
+        start_to_end_num = [22.3, 48.9, 48.9, 48.9, 10.4, 5, 10, 22]
+        ax[0].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
+        ax[0].set_title("cycle 1")
+        
         plt.subplot(212)
         starts = [58, 48.24, 48.24, 59.44, 56.24, 48.24, 137.84, 47.56]
         start_to_end_num = [50.2, 120.2, 129.23, 76.12, 35.8, 39.64, 35, 129.92]
         ax[1].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
         ax[1].set_title("cycle 2")
-        
-    # ax.barh(labels, st_ends, left=st, color=color_dict.values())
+        ax[1].set_xlabel("Time in seconds")
+        # plt.xlabel("time in seconds")
+
+    plt.subplots_adjust(bottom=0.1, 
+                        top=0.9, 
+                        wspace=0.4, 
+                        hspace=0.4)
 
     fig.canvas.draw()
 
@@ -100,6 +101,62 @@ def plot_to_img(fig, ax, num_cycles):
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     return img
+
+
+labels = [
+    'horn', 
+    'speedo', 
+    'exposed_fork', 
+    'torque_tool_hanging', 
+    'torque_tool_inserted', 
+    'ball_bearing_tool', 
+    'QR_code_scanner', 
+    'wheel_with_fender'
+]
+
+colors = [
+    '#55415f',
+    '#d77355',
+    '#646964',
+    '#508cd7',
+    '#64b964',
+    '#e6c86e',
+    '#000000',
+    '#9C0F48',
+]
+
+def plot_last_2_cycles(fig, ax, cycles):
+    for i, cycle in enumerate(cycles):
+        starts = []
+        elapsed = []
+        for obj_id, (first_seen_t, last_seen_t) in cycle["marker_frame_times"].items():
+            starts.append(first_seen_t)
+            elapsed.append(last_seen_t - first_seen_t)
+
+        # elapsed = cycle["marker_time_elapsed"]
+
+        # print(f'{starts = }')
+        # print(f'{elapsed = }')
+
+        ax[i].barh(labels, elapsed, left=starts, color=colors)
+        ax[i].set_title(f"cycle {i}")
+        ax[i].set_xlabel("Time in seconds")
+
+
+    plt.subplots_adjust(bottom=0.1, 
+                        top=0.9, 
+                        wspace=0.4, 
+                        hspace=0.4)
+
+    fig.canvas.draw()
+
+    img = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+    img = img.reshape(fig.canvas.get_width_height()[::-1] + (3, ))
+
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+    return img
+    
 
 
 def plot():
@@ -190,16 +247,6 @@ def plot():
 
     plt.show()
 
+
 if __name__ == "__main__":
     plot()
-
-
-
-# {0: (-1, -1),
-# 1: (-1, -1),
-# 2: (345, 1685),
-# 3: (345, 1685),
-# 4: (269, 1660),
-# 5: (327, 328),
-# 6: (317, 1200),
-# 7: (269, 1685)}}
