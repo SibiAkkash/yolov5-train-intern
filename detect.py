@@ -266,7 +266,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             if view_img:
                 plot_img = plot_to_img(fig, ax, num_cycles)
                 ph, pw, _ = plot_img.shape # 600, 1600
-                plot_img = cv2.resize(plot_img, (1200, 960))
+                plot_img = cv2.resize(plot_img, (900, 640))
 
                 # stack stream and plot vertically
                 stacked = np.hstack((im0, plot_img))
