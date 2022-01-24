@@ -126,7 +126,11 @@ colors = [
 ]
 
 def plot_last_2_cycles(fig, ax, cycles):
+    # clear grid each time
+    plt.cla()
+
     for i, cycle in enumerate(cycles):
+        plt.subplot(int(f'21{i+1}'))
         starts = []
         elapsed = []
         for obj_id, (first_seen_t, last_seen_t) in cycle["marker_frame_times"].items():
