@@ -223,7 +223,8 @@ class LoadImages:
         # rotate img
         # im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
         # resize img
-        img0 = cv2.resize(img0, (540, 960))
+        # img0 = cv2.resize(img0, (540, 960))
+        img0 = cv2.resize(img0, (360, 640))
         
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride, auto=self.auto)[0]
