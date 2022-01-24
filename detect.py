@@ -34,7 +34,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from visual_inspector import VisualInspector
-
+from helpers import plot_to_img
 
 
 FILE = Path(__file__).resolve()
@@ -224,14 +224,12 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
             frame_num = dataset.count if stream else dataset.frame
             
-            print('creating inspector object...')
             inspector.process_detections_2(
                 frame_num=frame_num, 
                 detections=detections, 
                 current_frame=im0
             )
-            print('done')
-
+            
             # Print time (inference-only)
             # LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
 
@@ -260,8 +258,11 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
 
             if view_img:
-                cv2.imshow(str(p), im0)
-                cv2.waitKey(1)
+                plot_img = plot_to_img()
+                cv2.imshow(str(p), plot_img)
+                
+                if cv2.waitKey(5) == ord('q'):
+                    break
 
             # Save results (image with detections)
             if save_img:
