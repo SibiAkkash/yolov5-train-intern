@@ -185,12 +185,14 @@ class VisualInspector:
             current_frame: npt.NDArray = None,
         ):
         if self.num_cycles_seen == 0:
+            print('waiting for first horn to cross...')
+
             closest_horn_y = self.get_object_closest_to_line(
                             detections=detections,
                             object_id=self.end_marker_object_id,
                             line_y=self.exit_line_y,
                             check_top=False,
-                            buffer=70
+                            buffer=100
                         )
             # no horn found, return
             if closest_horn_y == -1:
@@ -208,18 +210,19 @@ class VisualInspector:
                 self.waiting_for_horn = False
 
                 return
-            else:
-                print('waiting for first horn to cross...')
-                return
+    
 
         else:
             # wait for speedo change
             if self.waiting_for_speedo:
+                print('waiting for speedo to enter...')
+
                 closest_speedo_y = self.get_object_closest_to_line(
                                     detections=detections,
                                     object_id=self.start_marker_object_id,
                                     line_y=self.entry_line_y,
-                                    check_top=True
+                                    check_top=True,
+                                    buffer=35
                                 )
                 # no speedo found, return
                 if closest_speedo_y == -1:
@@ -238,10 +241,7 @@ class VisualInspector:
 
                     return
 
-                else:
-                    print('waiting for speedo to enter...')
-                    return
-                    
+                   
 
             # at this point, a cycle has started, horn has not left, find other markers
             self._process_other_markers(frame_num=frame_num, detections=detections)
@@ -249,6 +249,8 @@ class VisualInspector:
 
             # find inside horn first
             if not self.found_inside_horn:
+                print('waiting to find inside horn...')
+
                 # wait for horn inside lines to change state
                 inside_horn_y = self.get_object_within_lines(
                     detections=detections,
@@ -257,11 +259,12 @@ class VisualInspector:
                 )
 
                 if inside_horn_y == -1:
-                    print('waiting to find inside horn...')
                     return
                 
                 # we've found a horn inside, set state
                 else:
+                    print("INSIDE HORN FOUND")
+                    print("INSIDE HORN FOUND")
                     print("INSIDE HORN FOUND")
                     print(f'{inside_horn_y = }, {self.entry_line_y = }, {self.exit_line_y = }')
                     self.found_inside_horn = True
@@ -271,16 +274,22 @@ class VisualInspector:
             
             # found inside horn, wait for state change
             else:
+                print('INSIDE HORN FOUND, waiting for inside horn to cross...')
+
                 closest_horn_y = self.get_object_closest_to_line(
                             detections=detections,
                             object_id=self.end_marker_object_id,
                             line_y=self.exit_line_y,
                             check_top=False,
-                            buffer=70
+                            buffer=100
                         )
+
+
                 # no horn found in this frame, return
                 if closest_horn_y == -1:
                     return
+                
+                print('checking for inside horn state change...')
 
                 # horn crossed
                 if closest_horn_y >= self.exit_line_y and self.is_horn_inside_line:
@@ -295,6 +304,3 @@ class VisualInspector:
                     
                     self.is_speedo_above_line = True
 
-                else:
-                    print('waiting for inside horn to cross...')
-                    return
