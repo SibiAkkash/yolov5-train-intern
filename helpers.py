@@ -47,9 +47,6 @@ def plot_to_img(fig, ax, num_cycles):
         'wheel_with_fender'
     ]
 
-    starts = [10.5, 2.56, 2.56, 2.56, 25.7, 3.56, 30.57, 1.2]
-    start_to_end_num = [12.3, 48.9, 48.9, 48.9, 35.8, 35, 35, 12]
-
     cyc_start = 1188
     cyc_end = 4437
 
@@ -76,15 +73,20 @@ def plot_to_img(fig, ax, num_cycles):
     
     # plt.legend(handles=legend_elements)
 
-    assert(len(labels) == len(starts) == len(start_to_end_num))
+    # assert(len(labels) == len(starts) == len(start_to_end_num))
     
     if num_cycles > 0:
         plt.subplot(211)
+        starts = [10.5, 2.56, 2.56, 2.56, 25.7, 3.56, 30.57, 1.2]
+        start_to_end_num = [12.3, 48.9, 48.9, 48.9, 35.8, 35, 35, 12]
         ax[0].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
         ax[0].set_title("cycle 1")
 
+
     if num_cycles > 1:
         plt.subplot(212)
+        starts = [58, 48.24, 48.24, 59.44, 56.24, 48.24, 137.84, 47.56]
+        start_to_end_num = [50.2, 120.2, 129.23, 76.12, 35.8, 39.64, 35, 129.92]
         ax[1].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
         ax[1].set_title("cycle 2")
         
