@@ -224,11 +224,13 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
             frame_num = dataset.count if stream else dataset.frame
             
-            inspector.process_detections(
+            print('creating inspector object...')
+            inspector.process_detections_2(
                 frame_num=frame_num, 
                 detections=detections, 
                 current_frame=im0
             )
+            print('done')
 
             # Print time (inference-only)
             # LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
