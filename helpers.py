@@ -34,8 +34,7 @@ def is_bbox_inside_line(x1, y1, x2, y2, line_y: int) -> bool:
 
 
 
-def plot_to_img():
-    fig, ax = plt.subplots(2, 1, figsize=(16, 6))
+def plot_to_img(fig, ax, num_cycles):
 
     labels = [
         'horn', 
@@ -79,12 +78,16 @@ def plot_to_img():
 
     assert(len(labels) == len(starts) == len(start_to_end_num))
     
-    plt.subplot(211)
-    ax[0].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
+    if num_cycles > 0:
+        plt.subplot(211)
+        ax[0].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
+        ax[0].set_title("cycle 1")
 
-    plt.subplot(212)
-    ax[1].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
-    
+    if num_cycles > 1:
+        plt.subplot(212)
+        ax[1].barh(labels, start_to_end_num, left=starts, color=color_dict.values())
+        ax[1].set_title("cycle 2")
+        
     # ax.barh(labels, st_ends, left=st, color=color_dict.values())
 
     fig.canvas.draw()
