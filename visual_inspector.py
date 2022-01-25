@@ -132,8 +132,6 @@ class VisualInspector:
         if len(self.cycle_cache) > 2:
             self.cycle_cache.pop(0)
 
-        print(f'num cycles: {len(self.cycle_cache)}')
-
         self.refresh_state()
 
     def cycle_started(self):
@@ -167,10 +165,11 @@ class VisualInspector:
         for obj_id, x1, y1, x2, y2 in detections:
             if obj_id == object_id:
                 y_to_check = y1 if check_top else y2
-                if self.entry_line_y < y_to_check < self.exit_line_y:
+                # if self.entry_line_y < y_to_check < self.exit_line_y:
+                if self.entry_line_y < y_to_check < self.exit_line_y - 100:
                     return y_to_check
 
-        print(f'{self.marker_names[object_id]} not found...')
+        print(f'{self.marker_names[object_id]} not found within lines...')
         return -1
 
     def _process_other_markers(self, frame_num, detections):

@@ -128,8 +128,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
     # print(names) # ['horn', 'speedo', 'exposed_fork', 'torque_tool_hanging', 'torque_tool_inserted', 'ball_bearing_tool', 'QR_code_scanner', 'wheel_with_fender']
     
-    ENTRY_LINE_Y = 100
-    EXIT_LINE_Y = 600
+    # ENTRY_LINE_Y = 100
+    ENTRY_LINE_Y = 150
+    # EXIT_LINE_Y = 600
+    EXIT_LINE_Y = 650
 
     inspector = VisualInspector(
         start_marker_object_id=names.index('speedo'),
@@ -246,9 +248,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             H, W, _ = im0.shape
             BUFFER = 30
             # top line
-            cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
-            cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
-            cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
+            # cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
+            # cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
+            # cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
             
             # cv2.rectangle(
             #     img=im0, 
@@ -259,9 +261,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             # )
 
             # bottom line
-            cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
-            cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
-            cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
+            # cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
+            # cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
+            # cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
 
 
             if view_img:
