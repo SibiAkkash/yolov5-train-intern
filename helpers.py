@@ -132,18 +132,25 @@ def plot_last_2_cycles(fig, ax, cycles):
     for i, cycle in enumerate(cycles):
         plt.subplot(int(f'21{i+1}'))
         
-        cycle_start = cycle["cycle_start_frame_time"]
+        cycle_start_t = cycle["cycle_start_frame_time"]
         starts = []
         elapsed = []
         
-        for obj_id, (first_seen_t, last_seen_t) in cycle["marker_frame_times"].items():
-            start_t = first_seen_t if first_seen_t > 0 else 0
-            starts.append(start_t)
-            t_elapsed = round(last_seen_t - first_seen_t, 2) if last_seen_t > 0 else 5
-            elapsed.append(t_elapsed)
+        # for obj_id, (first_seen_t, last_seen_t) in cycle["marker_frame_times"].items():
+        #     start_t = first_seen_t if first_seen_t > 0 else 0
+        #     starts.append(start_t)
+        #     t_elapsed = round(last_seen_t - first_seen_t, 2) if last_seen_t > 0 else 0
+        #     elapsed.append(t_elapsed)
 
-        for idx, t in enumerate(starts):
-            starts[idx] = max(0, t - cycle_start)
+        # # shift time to cycle start 
+        # for idx, t in enumerate(starts):
+        #     starts[idx] = max(0, t - cycle_start_t)
+
+        for obj_id, (first_seen_rt, last_seen_rt) in cycle["marker_times_relative"].items():
+            start_t = round(first_seen_rt, 2) if first_seen_rt > 0 else 0
+            starts.append(start_t)
+            t_elapsed = round(last_seen_rt - first_seen_rt, 2) if last_seen_rt > 0 else 0
+            elapsed.append(t_elapsed)
 
         # print(f'{starts = }')
         # print(f'{elapsed = }')

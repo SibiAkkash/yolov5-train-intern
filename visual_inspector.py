@@ -5,6 +5,7 @@ from pprint import pprint
 import numpy as np
 import numpy.typing as npt
 from pathlib import Path
+import time
 import copy
 from dataclasses import dataclass, field
 from helpers import get_time_elapsed_ms, get_time_from_frame, plot_last_2_cycles
@@ -61,16 +62,22 @@ class VisualInspector:
 
         self.state = {
             "cycle_num": -1,
+
             "cycle_started": False,
             "cycle_ended": False,
 
             "cycle_start_frame_num": 0,
             "cycle_start_frame_time": 0,
+            
+            "cycle_start_sys_time": 0,
+            "cycle_end_sys_time": 0,
+            
             "cycle_end_frame_num": 0,
             "cycle_end_frame_time": 0,
 
             "marker_frame_nums": {i: (-1, -1) for i in range(len(self.marker_names))},
             "marker_frame_times": {i: (-1, -1) for i in range(len(self.marker_names))},
+            "marker_times_relative": {i: (-1, -1) for i in range(len(self.marker_names))},
             "marker_time_elapsed": [0 for i in range(len(self.marker_names))]
 
         }
@@ -78,50 +85,56 @@ class VisualInspector:
     def get_frame_nums_of_object(self, obj_id: int):
         return self.state["marker_frame_nums"][obj_id]
 
+    def get_obj_frame_times_relative(self, obj_id: int):
+        return self.state["marker_times_relative"][obj_id]
+
+    def set_obj_frame_times_relative(self, obj_id: int, first_seen_t, last_seen_t):
+        self.state["marker_times_relative"][obj_id] = (first_seen_t, last_seen_t)
+
     def set_frame_nums_of_object(self, obj_id: int, first_seen: int, last_seen: int):
         first_seen_time = get_time_from_frame(first_seen, self.stream_fps)
         last_seen_time = get_time_from_frame(last_seen, self.stream_fps)
         self.state["marker_frame_nums"][obj_id] = (first_seen, last_seen)
         self.state["marker_frame_times"][obj_id] = (first_seen_time, last_seen_time)
-
+        
 
     def _handle_cycle_start(self, frame_num: int):
         print("CYCLE STARTED")
         self.state["cycle_started"] = True
+
         self.state["cycle_start_frame_num"] = frame_num
         self.state["cycle_start_frame_time"] = get_time_from_frame(frame_num, self.stream_fps)
-
-
-    def plot_cycles(self, fig, ax):
-        # call plot to get image
-        return plot_last_2_cycles(fig, ax, self.cycle_cache)
         
-        # if self.num_cycles_seen > 1:
-        #     plot_cycle(fig, ax, self.cycle_cache[-1])
-        # return image
+        self.state["cycle_start_sys_time"] = time.time()
+
+        pprint(self.state)
+
+
     
     def _handle_cycle_end(self, frame_num: int):
         print("CYCLE ENDED")
         self.num_cycles_seen += 1
-        
         self.state["cycle_num"] = self.num_cycles_seen
+        
         self.state["cycle_ended"] = True
+        
         self.state["cycle_end_frame_num"] = frame_num
         self.state["cycle_end_frame_time"] = get_time_from_frame(frame_num, self.stream_fps)
+        
+        self.state["cycle_end_sys_time"] = time.time()
 
-
-        pprint(self.state)
 
         for obj_id, (first_seen, last_seen) in self.state["marker_frame_nums"].items():
             time_elapsed = get_time_elapsed_ms(first_seen, last_seen, self.stream_fps)
             self.state["marker_time_elapsed"][obj_id] = time_elapsed
+            # self.state["marker_time_elapsed_sys"][obj_id] = 
             
-            print(f'''
-                {self.marker_names[obj_id]}: 
-                first_seen: {get_time_from_frame(first_seen, self.stream_fps)}, 
-                last_seen: {get_time_from_frame(last_seen, self.stream_fps)}, 
-            '''
-            )
+            # print(f'''
+            #     {self.marker_names[obj_id]}: 
+            #     first_seen: {get_time_from_frame(first_seen, self.stream_fps)}, 
+            #     last_seen: {get_time_from_frame(last_seen, self.stream_fps)}, 
+            # '''
+            # )
 
         # cache to plot
         # ignore first cycle
@@ -132,10 +145,16 @@ class VisualInspector:
         if len(self.cycle_cache) > 2:
             self.cycle_cache.pop(0)
 
+        pprint(self.state)
+
         self.refresh_state()
 
     def cycle_started(self):
         return self.state["cycle_started"]
+
+    def plot_cycles(self, fig, ax):
+        return plot_last_2_cycles(fig, ax, self.cycle_cache)
+
 
     def get_object_closest_to_line(self, detections, object_id, line_y, check_top=True, buffer=30):
         min_diff = float('inf')
@@ -174,8 +193,8 @@ class VisualInspector:
 
     def _process_other_markers(self, frame_num, detections):
         for obj_id, *xyxy in detections:                
+            # using frame numbers
             first_seen, _ = self.get_frame_nums_of_object(obj_id)
-            
             if first_seen == -1:
                 new_first_seen = frame_num
                 new_last_seen = -1
@@ -183,146 +202,21 @@ class VisualInspector:
                 new_first_seen = first_seen
                 new_last_seen = frame_num  
 
-            self.set_frame_nums_of_object(
-                obj_id, 
-                first_seen=new_first_seen, 
-                last_seen=new_last_seen
-            )
-                
-    # if cycle seen = 0, wait for closest horn to change state
-    # horn state changed
-    # wait for speedo state change
-    # speedo state changed
-    # horn must have crossed already, 
-    # wait for horn inside lines to change state
-    # horn state changed
-    # loop to step 3
-    def process_detections(
-            self,
-            detections: Dict[int, Tuple[int, int, int, int]],
-            frame_num: int,
-            current_frame: npt.NDArray = None,
-        ):
-        if self.num_cycles_seen == 0:
-            print('waiting for first horn to cross...')
+            self.set_frame_nums_of_object(obj_id, new_first_seen, new_last_seen)
 
-            closest_horn_y = self.get_object_closest_to_line(
-                            detections=detections,
-                            object_id=self.end_marker_object_id,
-                            line_y=self.exit_line_y,
-                            check_top=False,
-                            buffer=100
-                        )
-            # no horn found, return
-            if closest_horn_y == -1:
-                return
-
-            # horn crossed
-            if closest_horn_y >= self.exit_line_y and self.is_horn_inside_line:
-                print("FIRST HORN LEFT")
-                print(f'{closest_horn_y = }, {self.exit_line_y = }')
-                self.is_horn_inside_line = False
-
-                self._handle_cycle_end(frame_num=frame_num)
-
-                self.waiting_for_speedo_to_cross = True
-                self.waiting_for_horn_to_cross = False
-
-                return
+            # using sys time
+            first_seen_t, _ = self.get_obj_frame_times_relative(obj_id)
     
-
-        else:
-            # wait for speedo change
-            if self.waiting_for_speedo_to_cross:
-                print('waiting for speedo to enter...')
-
-                closest_speedo_y = self.get_object_closest_to_line(
-                                    detections=detections,
-                                    object_id=self.start_marker_object_id,
-                                    line_y=self.entry_line_y,
-                                    check_top=True,
-                                    buffer=35
-                                )
-                # no speedo found, return
-                if closest_speedo_y == -1:
-                    return
-
-                # speedo crossed
-                if closest_speedo_y >= self.entry_line_y and self.is_speedo_above_line:
-                    print("SPEEDO ENTERED")
-                    print(f'{closest_speedo_y = }, {self.entry_line_y = }')
-                    self.is_speedo_above_line = False
-
-                    self._handle_cycle_start(frame_num=frame_num)
-                    
-                    self.waiting_for_speedo_to_cross = False
-                    self.waiting_for_horn_to_cross = True
-
-                    return
-
-                   
-
-            # at this point, a cycle has started, horn has not left, find other markers
-            self._process_other_markers(frame_num=frame_num, detections=detections)
-
-
-            # find inside horn first
-            if not self.found_inside_horn:
-                print('waiting to find inside horn...')
-
-                # wait for horn inside lines to change state
-                inside_horn_y = self.get_object_within_lines(
-                    detections=detections,
-                    object_id=self.end_marker_object_id,
-                    check_top=False
-                )
-
-                if inside_horn_y == -1:
-                    return
-                
-                # we've found a horn inside, set state
-                else:
-                    print("INSIDE HORN FOUND")
-                    print("INSIDE HORN FOUND")
-                    print("INSIDE HORN FOUND")
-                    print(f'{inside_horn_y = }, {self.entry_line_y = }, {self.exit_line_y = }')
-                    self.found_inside_horn = True
-                    # set inside_line to True, only then we can observe state change    
-                    self.is_horn_inside_line = True
-                    return
-            
-            # found inside horn, wait for state change
+            if first_seen_t == -1:
+                new_fst_t = time.time() - self.state["cycle_start_sys_time"]
+                new_lst_t = -1
             else:
-                print('INSIDE HORN FOUND, waiting for inside horn to cross...')
+                new_fst_t = first_seen_t
+                new_lst_t = time.time() - self.state["cycle_start_sys_time"]
 
-                closest_horn_y = self.get_object_closest_to_line(
-                            detections=detections,
-                            object_id=self.end_marker_object_id,
-                            line_y=self.exit_line_y,
-                            check_top=False,
-                            buffer=100
-                        )
-
-
-                # no horn found in this frame, return
-                if closest_horn_y == -1:
-                    return
+            self.set_obj_frame_times_relative(obj_id, new_fst_t, new_lst_t)
                 
-                print('checking for inside horn state change...')
-
-                # horn crossed
-                if closest_horn_y >= self.exit_line_y and self.is_horn_inside_line:
-                    print("HORN LEFT")
-                    print(f'{closest_horn_y = }, {self.exit_line_y = }')
-                    self.is_horn_inside_line = False
-                    
-                    self._handle_cycle_end(frame_num=frame_num)
-                    
-                    self.waiting_for_speedo_to_cross = True
-                    self.waiting_for_horn_to_cross = False
-                    
-                    self.is_speedo_above_line = True
-
+    
 
     def _wait_for_horn_cross(
             self,
@@ -408,7 +302,6 @@ class VisualInspector:
         # at this point, a cycle has started, horn has not left, find other markers
         self._process_other_markers(frame_num=frame_num, detections=detections)
 
-
         # wait for horn inside lines to change state
         print('waiting to find inside horn...', end='\t')
 
@@ -437,14 +330,21 @@ class VisualInspector:
         self.waiting_to_see_inside_horn = False
 
 
-
+    # if cycle seen = 0, wait for closest horn to change state
+    # horn state changed
+    # wait for speedo state change
+    # speedo state changed
+    # horn must have crossed already, 
+    # wait for horn inside lines to change state
+    # horn state changed
+    # loop to step 3
     def process_detections_2(
                 self,
                 detections: Dict[int, Tuple[int, int, int, int]],
                 frame_num: int,
                 current_frame: npt.NDArray = None,
             ):
-
+            print(f'processing frame {frame_num}')
             if self.waiting_for_horn_to_cross:
                 return self._wait_for_horn_cross(detections=detections, frame_num=frame_num)
                 

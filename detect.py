@@ -34,10 +34,9 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from visual_inspector import VisualInspector
-from helpers import plot_to_img
 import matplotlib.pyplot as plt
-import matplotlib
 import numpy as np
+import mediapipe as mp
 
 
 FILE = Path(__file__).resolve()
@@ -53,6 +52,11 @@ from utils.general import (LOGGER, check_file, check_img_size, check_imshow, che
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
 
+
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+mp_hands = mp.solutions.hands
+mp_pose = mp.solutions.pose
 
 
 @torch.no_grad()
@@ -101,6 +105,14 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     stride, names, pt, jit, onnx, engine = model.stride, model.names, model.pt, model.jit, model.onnx, model.engine
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
+    # initialise hand tracker
+    pose = mp_pose.Pose(
+        min_detection_confidence=0.5, 
+        min_tracking_confidence=0.5,
+        static_image_mode=False,
+        model_complexity=2
+    )
+
     # Half
     half &= (pt or jit or onnx or engine) and device.type != 'cpu'  # FP16 supported on limited backends with CUDA
     if pt or jit:
@@ -125,13 +137,12 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         
     vid_path, vid_writer = [None] * bs, [None] * bs
 
-
     # print(names) # ['horn', 'speedo', 'exposed_fork', 'torque_tool_hanging', 'torque_tool_inserted', 'ball_bearing_tool', 'QR_code_scanner', 'wheel_with_fender']
     
-    # ENTRY_LINE_Y = 100
-    ENTRY_LINE_Y = 150
-    # EXIT_LINE_Y = 600
-    EXIT_LINE_Y = 650
+    ENTRY_LINE_Y = 100
+    # ENTRY_LINE_Y = 140
+    EXIT_LINE_Y = 600
+    # EXIT_LINE_Y = 630
 
     inspector = VisualInspector(
         start_marker_object_id=names.index('speedo'),
@@ -172,6 +183,19 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         # Second-stage classifier (optional)
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
 
+        # #####################  Mediapipe  #######################
+        flipped_image = cv2.cvtColor(im0s[0], cv2.COLOR_BGR2RGB)
+        # To improve performance, optionally mark the image as not writeable to
+        # pass by reference.
+        flipped_image.flags.writeable = False
+        # img_to_np = im0s[0].cpu().detach().numpy()
+        # print(im0s[0])
+        # print(img_to_np)
+        # results = hands.process(flipped_image)
+        results_pose = pose.process(flipped_image)
+        # print(results_pose)
+        # #########################################################
+
         # Process predictions
         for i, det in enumerate(pred):  # per image
             seen += 1
@@ -189,7 +213,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
 
-
             detections = []
 
             if len(det):
@@ -206,14 +229,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 for *xyxy, conf, cls in reversed(det):
 
                     x1, y1, x2, y2 = map(lambda t: int(t.item()), xyxy)
-                    # coords_str = f'{x1, y1}, {x2, y2}'
-                    # class_name = names[int(cls.item())]
-                    # print(f'{class_name} {round(conf.item(), 4)}: {coords_str}')
-
-                    # class id: (x1, y1, x2, y2)
-                    # detections[int(cls.item())] = x1, y1, x2, y2
                     detections.append((int(cls.item()), x1, y1, x2, y2))
-
 
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
@@ -241,16 +257,28 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             # Print time (inference-only)
             # LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
 
+            # draw pose landmarks
+            mp_drawing.draw_landmarks(
+                im0,
+                results_pose.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS,
+                landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style()
+            )
+            
+            # mp_drawing.plot_landmarks(
+            #     results_pose.pose_world_landmarks, mp_pose.POSE_CONNECTIONS
+            # )
+
             # Stream results
             im0 = annotator.result()
 
-
             H, W, _ = im0.shape
             BUFFER = 30
+
             # top line
-            # cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
-            # cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
-            # cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
+            cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
             
             # cv2.rectangle(
             #     img=im0, 
@@ -261,10 +289,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             # )
 
             # bottom line
-            # cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
-            # cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
-            # cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
-
+            cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
 
             if view_img:
                 plot_img = inspector.plot_cycles(fig, ax)
@@ -274,7 +301,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 plot_img = cv2.resize(plot_img, (900, 960))
                 # plot_img = cv2.resize(plot_img, (900, 640))
 
-                # # stack stream and plot vertically
+                # stack stream and plot vertically
                 stacked = np.hstack((im0, plot_img))
 
                 cv2.imshow(str(p), stacked)
