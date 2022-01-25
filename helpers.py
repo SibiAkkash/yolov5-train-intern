@@ -3,6 +3,7 @@ from typing import Tuple
 
 import secrets
 import string
+import matplotlib
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
@@ -125,25 +126,31 @@ colors = [
     '#9C0F48',
 ]
 
-def plot_last_2_cycles(fig, ax, cycles):
-    # clear grid each time
-    plt.cla()
 
+
+def plot_last_2_cycles(fig, ax, cycles):
     for i, cycle in enumerate(cycles):
         plt.subplot(int(f'21{i+1}'))
+        
+        cycle_start = cycle["cycle_start_frame_time"]
         starts = []
         elapsed = []
+        
         for obj_id, (first_seen_t, last_seen_t) in cycle["marker_frame_times"].items():
-            starts.append(first_seen_t)
-            elapsed.append(last_seen_t - first_seen_t)
+            start_t = first_seen_t if first_seen_t > 0 else 0
+            starts.append(start_t)
+            t_elapsed = round(last_seen_t - first_seen_t, 2) if last_seen_t > 0 else 5
+            elapsed.append(t_elapsed)
 
-        # elapsed = cycle["marker_time_elapsed"]
+        for idx, t in enumerate(starts):
+            starts[idx] = max(0, t - cycle_start)
 
         # print(f'{starts = }')
         # print(f'{elapsed = }')
 
+        ax[i].cla()
         ax[i].barh(labels, elapsed, left=starts, color=colors)
-        ax[i].set_title(f"cycle {i}")
+        ax[i].set_title(f"cycle {cycle['cycle_num']}")
         ax[i].set_xlabel("Time in seconds")
 
 
@@ -179,40 +186,6 @@ def plot():
 
     starts = [10.5, 2.56, 2.56, 2.56, 25.7, 3.56, 30.57, 1.2]
     start_to_end_num = [12.3, 48.9, 48.9, 48.9, 35.8, 35, 35, 12]
-
-    # 0: (-1, -1),
-    # 1: (-1, -1),
-    # 2: (1206, 4437),
-    # 3: (1486, 4437),
-    # 4: (1406, 3184),
-    # 5: (-1, -1),
-    # 6: (3446, 4432),
-    # 7: (1189, 4437)
-
-    # exposed_fork: 
-    # first_seen: 48.24, 
-    # last_seen: 177.48, 
-
-    # torque_tool_hanging: 
-    # first_seen: 59.44, 
-    # last_seen: 177.48, 
-
-    # torque_tool_inserted: 
-    # first_seen: 56.24, 
-    # last_seen: 127.36, 
-
-    # ball_bearing_tool: 
-    # first_seen: -0.04, 
-    # last_seen: -0.04, 
-
-    # QR_code_scanner: 
-    # first_seen: 137.84, 
-    # last_seen: 177.28, 
-
-    # wheel_with_fender: 
-    # first_seen: 47.56, 
-    # last_seen: 177.48, 
-
 
     cyc_start = 1188
     cyc_end = 4437

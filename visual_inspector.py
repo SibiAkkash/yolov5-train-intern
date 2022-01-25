@@ -10,10 +10,6 @@ from dataclasses import dataclass, field
 from helpers import get_time_elapsed_ms, get_time_from_frame, plot_last_2_cycles
 
 
-def is_object_present(detections: List[int], object_id: int):
-    return object_id in detections
-
-
 # ----------------- FLOW -------------------------------------------------------------------------------------
 # start of cycle is speedo crossing top line
 # if horn crosses bottom line, the cycle has finished, refresh state
@@ -64,11 +60,14 @@ class VisualInspector:
     def refresh_state(self) -> None:
 
         self.state = {
+            "cycle_num": -1,
             "cycle_started": False,
             "cycle_ended": False,
 
             "cycle_start_frame_num": 0,
+            "cycle_start_frame_time": 0,
             "cycle_end_frame_num": 0,
+            "cycle_end_frame_time": 0,
 
             "marker_frame_nums": {i: (-1, -1) for i in range(len(self.marker_names))},
             "marker_frame_times": {i: (-1, -1) for i in range(len(self.marker_names))},
@@ -90,18 +89,26 @@ class VisualInspector:
         print("CYCLE STARTED")
         self.state["cycle_started"] = True
         self.state["cycle_start_frame_num"] = frame_num
+        self.state["cycle_start_frame_time"] = get_time_from_frame(frame_num, self.stream_fps)
+
 
     def plot_cycles(self, fig, ax):
         # call plot to get image
         return plot_last_2_cycles(fig, ax, self.cycle_cache)
+        
+        # if self.num_cycles_seen > 1:
+        #     plot_cycle(fig, ax, self.cycle_cache[-1])
         # return image
     
     def _handle_cycle_end(self, frame_num: int):
         print("CYCLE ENDED")
         self.num_cycles_seen += 1
         
+        self.state["cycle_num"] = self.num_cycles_seen
         self.state["cycle_ended"] = True
         self.state["cycle_end_frame_num"] = frame_num
+        self.state["cycle_end_frame_time"] = get_time_from_frame(frame_num, self.stream_fps)
+
 
         pprint(self.state)
 
@@ -124,6 +131,8 @@ class VisualInspector:
         # store only 2 cycles
         if len(self.cycle_cache) > 2:
             self.cycle_cache.pop(0)
+
+        print(f'num cycles: {len(self.cycle_cache)}')
 
         self.refresh_state()
 

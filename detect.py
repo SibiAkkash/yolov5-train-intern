@@ -36,6 +36,7 @@ import torch.backends.cudnn as cudnn
 from visual_inspector import VisualInspector
 from helpers import plot_to_img
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 
 
@@ -141,7 +142,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
     # to draw plots
     fig, ax = plt.subplots(2, 1, figsize=(16, 12))
-    num_cycles = 0
 
     # Run inference
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
@@ -266,8 +266,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
             if view_img:
                 plot_img = inspector.plot_cycles(fig, ax)
-                # plot_img = plot_to_img(fig, ax, num_cycles)
-                # ph, pw, _ = plot_img.shape # 600, 1600
+
+                ph, pw, _ = plot_img.shape # 600, 1600
+
                 plot_img = cv2.resize(plot_img, (900, 960))
                 # plot_img = cv2.resize(plot_img, (900, 640))
 
@@ -276,16 +277,11 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
                 cv2.imshow(str(p), stacked)
 
-                # cv2.imshow(str(p), im0)
-                
                 key = cv2.waitKey(5)
+
                 if key == ord('q'):
                     print('trying to quit')
                     break
-
-                if key == ord('e'):
-                    num_cycles += 1
-                    print(f'{num_cycles = }')
 
 
             # Save results (image with detections)
