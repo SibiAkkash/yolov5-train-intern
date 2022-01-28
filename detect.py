@@ -25,6 +25,7 @@ Usage - formats:
 """
 
 import argparse
+from itertools import cycle
 import os
 import sys
 from pathlib import Path
@@ -106,12 +107,12 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
     # initialise hand tracker
-    pose = mp_pose.Pose(
-        min_detection_confidence=0.5, 
-        min_tracking_confidence=0.5,
-        static_image_mode=False,
-        model_complexity=2
-    )
+    # pose = mp_pose.Pose(
+    #     min_detection_confidence=0.5, 
+    #     min_tracking_confidence=0.5,
+    #     static_image_mode=False,
+    #     model_complexity=2
+    # )
 
     # Half
     half &= (pt or jit or onnx or engine) and device.type != 'cpu'  # FP16 supported on limited backends with CUDA
@@ -134,15 +135,24 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
     print(f'{fps = }')
 
-        
     vid_path, vid_writer = [None] * bs, [None] * bs
 
-    # print(names) # ['horn', 'speedo', 'exposed_fork', 'torque_tool_hanging', 'torque_tool_inserted', 'ball_bearing_tool', 'QR_code_scanner', 'wheel_with_fender']
+    # print(names) 
+    # [ 
+    #   'horn',
+    #   'speedo',
+    #   'exposed_fork',
+    #   'torque_tool_hanging',
+    #   'torque_tool_inserted',
+    #   'ball_bearing_tool',
+    #   'QR_code_scanner', 
+    #   'wheel_with_fender'
+    # ]
     
     ENTRY_LINE_Y = 100
-    # ENTRY_LINE_Y = 140
-    EXIT_LINE_Y = 600
-    # EXIT_LINE_Y = 630
+    # ENTRY_LINE_Y = 80
+    EXIT_LINE_Y = 620
+    # EXIT_LINE_Y = 550
 
     inspector = VisualInspector(
         start_marker_object_id=names.index('speedo'),
@@ -184,15 +194,20 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
 
         # #####################  Mediapipe  #######################
-        flipped_image = cv2.cvtColor(im0s[0], cv2.COLOR_BGR2RGB)
+        
+        # flipped_image = cv2.cvtColor(im0s[0], cv2.COLOR_BGR2RGB)
+        
         # To improve performance, optionally mark the image as not writeable to
         # pass by reference.
-        flipped_image.flags.writeable = False
+        # flipped_image.flags.writeable = False
+        
         # img_to_np = im0s[0].cpu().detach().numpy()
         # print(im0s[0])
         # print(img_to_np)
         # results = hands.process(flipped_image)
-        results_pose = pose.process(flipped_image)
+        
+        # results_pose = pose.process(flipped_image)
+        
         # print(results_pose)
         # #########################################################
 
@@ -258,16 +273,13 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             # LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
 
             # draw pose landmarks
-            mp_drawing.draw_landmarks(
-                im0,
-                results_pose.pose_landmarks,
-                mp_pose.POSE_CONNECTIONS,
-                landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style()
-            )
-            
-            # mp_drawing.plot_landmarks(
-            #     results_pose.pose_world_landmarks, mp_pose.POSE_CONNECTIONS
+            # mp_drawing.draw_landmarks(
+            #     im0,
+            #     results_pose.pose_landmarks,
+            #     mp_pose.POSE_CONNECTIONS,
+            #     landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style()
             # )
+
 
             # Stream results
             im0 = annotator.result()
@@ -276,22 +288,33 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             BUFFER = 30
 
             # top line
-            cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 200, 0), 2)
             cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
-            cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 255, 0), 2)
-            
-            # cv2.rectangle(
-            #     img=im0, 
-            #     pt1=(0, ENTRY_LINE_Y - BUFFER), 
-            #     pt2=(W, ENTRY_LINE_Y + BUFFER),
-            #     color=(0, 50, 0),
-            #     thickness=-1
-            # )
-
+            cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 200, 0), 2)
             # bottom line
-            cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 200, 0), 2)
             cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
-            cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 255, 0), 2)
+            cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 200, 0), 2)
+
+            # show cycle status
+
+            cv2.rectangle(
+                img=im0,
+                pt1=(20, 670),
+                pt2=(500, 800),
+                color=(100, 100, 100),
+                thickness=-1
+            )
+
+            cv2.putText(
+                img=im0,
+                text=inspector.status,
+                org=(30, 700),
+                fontFace=0,
+                fontScale=1,
+                color=(0, 255, 0),
+                thickness=2
+            )
 
             if view_img:
                 plot_img = inspector.plot_cycles(fig, ax)

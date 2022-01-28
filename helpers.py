@@ -10,7 +10,7 @@ from matplotlib.patches import Patch
 
 import numpy as np
 import pandas as pd
-
+from pprint import pprint
 
 
 def get_time_elapsed_ms(start_frame: int, end_frame: int, fps: float):
@@ -160,6 +160,13 @@ def plot_last_2_cycles(fig, ax, cycles):
         ax[i].set_title(f"cycle {cycle['cycle_num']}")
         ax[i].set_xlabel("Time in seconds")
 
+        # ticks
+        xticks = np.arange(0, 100, 5)
+        ax[i].set_xticks(xticks)
+
+        ax[i].set_axisbelow(True)
+        ax[i].xaxis.grid(color='gray', linestyle='dashed')
+
 
     plt.subplots_adjust(bottom=0.1, 
                         top=0.9, 
@@ -175,7 +182,6 @@ def plot_last_2_cycles(fig, ax, cycles):
 
     return img
     
-
 
 def plot():
     fig, ax = plt.subplots(1, figsize=(16, 6))
@@ -225,12 +231,38 @@ def plot():
     ax.barh(labels, start_to_end_num, left=starts, color=color_dict.values())
     # ax.barh(labels, st_ends, left=st, color=color_dict.values())
 
-
     # xticks = np.arange(cyc_start - 10, cyc_end + 10, 3)
     # ax.set_xticks(xticks)
 
     plt.show()
 
 
+def plot_global_cycles(file):
+    matplotlib.use('TkAgg')
+    with open(file) as f:
+        times = list(map(lambda t: float(t[:-1]), f.readlines()))
+
+    fig, ax = plt.subplots(1, figsize=(16, 6))
+    
+    cycles = range(0, len(times))
+    color='#1f7ef2'
+    ax.bar(cycles, times)
+
+    xticks = np.arange(0, len(times), 1)
+    ax.set_xticks(xticks)
+
+    ax.set_title("Global cycle times")
+    ax.set_xlabel("Cycle number")
+    ax.set_ylabel("Cycle time (sec)")
+
+    ax.set_axisbelow(True)
+    ax.yaxis.grid(color='gray', linestyle='dashed')
+
+    # for i in range(1, len(cycles)+1):
+    #     plt.text(i, times[i-1]/2, times[i-1], ha="center")
+
+    plt.show()
+
+
 if __name__ == "__main__":
-    plot()
+    plot_global_cycles(file='cycle_times_2.txt')

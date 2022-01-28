@@ -11,12 +11,6 @@ from dataclasses import dataclass, field
 from helpers import get_time_elapsed_ms, get_time_from_frame, plot_last_2_cycles
 
 
-# ----------------- FLOW -------------------------------------------------------------------------------------
-# start of cycle is speedo crossing top line
-# if horn crosses bottom line, the cycle has finished, refresh state
-# store first and last occurence of bboxes
-# ------------------------------------------------------------------------------------------------------------
-
 @dataclass
 class Cycle:
     start_frame_num: int
@@ -52,6 +46,8 @@ class VisualInspector:
         self.waiting_for_speedo_to_cross = False
         self.waiting_to_see_inside_horn = False
 
+        self.status = "waiting for horn cross"
+
         self.found_inside_horn = False
 
         self.cycle_cache = []
@@ -59,7 +55,6 @@ class VisualInspector:
         self.refresh_state()
 
     def refresh_state(self) -> None:
-
         self.state = {
             "cycle_num": -1,
 
@@ -79,7 +74,6 @@ class VisualInspector:
             "marker_frame_times": {i: (-1, -1) for i in range(len(self.marker_names))},
             "marker_times_relative": {i: (-1, -1) for i in range(len(self.marker_names))},
             "marker_time_elapsed": [0 for i in range(len(self.marker_names))]
-
         }
 
     def get_frame_nums_of_object(self, obj_id: int):
@@ -109,7 +103,6 @@ class VisualInspector:
 
         pprint(self.state)
 
-
     
     def _handle_cycle_end(self, frame_num: int):
         print("CYCLE ENDED")
@@ -127,7 +120,6 @@ class VisualInspector:
         for obj_id, (first_seen, last_seen) in self.state["marker_frame_nums"].items():
             time_elapsed = get_time_elapsed_ms(first_seen, last_seen, self.stream_fps)
             self.state["marker_time_elapsed"][obj_id] = time_elapsed
-            # self.state["marker_time_elapsed_sys"][obj_id] = 
             
             # print(f'''
             #     {self.marker_names[obj_id]}: 
@@ -140,6 +132,11 @@ class VisualInspector:
         # ignore first cycle
         if self.num_cycles_seen > 1:
             self.cycle_cache.append(copy.deepcopy(self.state))
+            # write cycle time to file
+            with open("cycle_times_2.txt", 'a') as f:
+                global_cycle_time = self.state["cycle_end_sys_time"] - self.state["cycle_start_sys_time"]
+                global_cycle_time = str(round(global_cycle_time, 2))
+                f.write(f"{global_cycle_time}\n")
 
         # store only 2 cycles
         if len(self.cycle_cache) > 2:
@@ -155,14 +152,13 @@ class VisualInspector:
     def plot_cycles(self, fig, ax):
         return plot_last_2_cycles(fig, ax, self.cycle_cache)
 
-
     def get_object_closest_to_line(self, detections, object_id, line_y, check_top=True, buffer=30):
         min_diff = float('inf')
         closest_obj_y  = -1
 
         for obj_id, x1, y1, x2, y2 in detections:
             if obj_id == object_id:
-
+                # check crossing with bbox top or bbox bottom
                 y_to_check = y1 if check_top else y2
                 diff = abs(y_to_check - line_y)
 
@@ -216,8 +212,6 @@ class VisualInspector:
 
             self.set_obj_frame_times_relative(obj_id, new_fst_t, new_lst_t)
                 
-    
-
     def _wait_for_horn_cross(
             self,
             detections: Dict[int, Tuple[int, int, int, int]],
@@ -245,9 +239,7 @@ class VisualInspector:
 
         # horn crossed
         if closest_horn_y >= self.exit_line_y and self.is_horn_inside_line:
-            print("HORN LEFT")
-            print("HORN LEFT")
-            print("HORN LEFT")
+            print("HORN LEFT\nHORN LEFT\nHORN LEFT\n")
             print(f'{closest_horn_y = }, {self.exit_line_y = }')
             self.is_horn_inside_line = False
 
@@ -256,10 +248,13 @@ class VisualInspector:
             # next state
             self.waiting_for_speedo_to_cross = True
             # set inside_line to True, only then we can observe state change    
+            # assuming a speedo is about to enter
             self.is_speedo_above_line = True
             
             self.waiting_for_horn_to_cross = False
             self.waiting_to_see_inside_horn = False
+
+            self.status = "waiting for speedo cross"
 
 
     def _wait_for_speedo_cross(
@@ -293,6 +288,9 @@ class VisualInspector:
             self.waiting_for_speedo_to_cross = False
             self.waiting_for_horn_to_cross = False
 
+            self.status = "waiting for inside horn"
+
+
 
     def _wait_for_inside_horn(
         self,
@@ -316,9 +314,7 @@ class VisualInspector:
             return
 
         # we've found a horn inside, set state
-        print("INSIDE HORN FOUND")
-        print("INSIDE HORN FOUND")
-        print("INSIDE HORN FOUND")
+        print("INSIDE HORN FOUND\nINSIDE HORN FOUND\nINSIDE HORN FOUND")
         print(f'{inside_horn_y = }, {self.entry_line_y = }, {self.exit_line_y = }')
         
         # next state
@@ -329,31 +325,31 @@ class VisualInspector:
         self.waiting_for_speedo_to_cross = False
         self.waiting_to_see_inside_horn = False
 
+        self.status = "waiting for horn cross"
 
-    # if cycle seen = 0, wait for closest horn to change state
-    # horn state changed
-    # wait for speedo state change
-    # speedo state changed
-    # horn must have crossed already, 
-    # wait for horn inside lines to change state
-    # horn state changed
-    # loop to step 3
+
+    # 1. if cycle seen = 0, wait for closest horn to change state
+    # 2. horn state changed
+    # 3. wait for speedo state change
+    # 4. speedo state changed
+    # 5. horn must have crossed already, 
+    # 6. wait for horn inside lines to change state
+    # 7. horn state changed
+    # 8. loop to step 3
     def process_detections_2(
-                self,
-                detections: Dict[int, Tuple[int, int, int, int]],
-                frame_num: int,
-                current_frame: npt.NDArray = None,
-            ):
-            print(f'processing frame {frame_num}')
-            if self.waiting_for_horn_to_cross:
-                return self._wait_for_horn_cross(detections=detections, frame_num=frame_num)
-                
-             
-            if self.waiting_for_speedo_to_cross:
-                return self._wait_for_speedo_cross(detections=detections, frame_num=frame_num)
-                
-
-            if self.waiting_to_see_inside_horn:
-                return self._wait_for_inside_horn(detections=detections, frame_num=frame_num)
+        self,
+        detections: Dict[int, Tuple[int, int, int, int]],
+        frame_num: int,
+        current_frame: npt.NDArray = None,
+    ):
+        print(f'processing frame {frame_num}')
+        if self.waiting_for_horn_to_cross:
+            return self._wait_for_horn_cross(detections=detections, frame_num=frame_num)
+            
+        if self.waiting_for_speedo_to_cross:
+            return self._wait_for_speedo_cross(detections=detections, frame_num=frame_num)
+            
+        if self.waiting_to_see_inside_horn:
+            return self._wait_for_inside_horn(detections=detections, frame_num=frame_num)
                 
 
