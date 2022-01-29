@@ -300,8 +300,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
             cv2.rectangle(
                 img=im0,
-                pt1=(20, 670),
-                pt2=(500, 800),
+                pt1=(20, 820),
+                pt2=(500, 870),
                 color=(100, 100, 100),
                 thickness=-1
             )
@@ -309,9 +309,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             cv2.putText(
                 img=im0,
                 text=inspector.status,
-                org=(30, 700),
+                org=(30, 850),
                 fontFace=0,
-                fontScale=1,
+                fontScale=0.8,
                 color=(0, 255, 0),
                 thickness=2
             )

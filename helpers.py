@@ -245,8 +245,11 @@ def plot_global_cycles(file):
     fig, ax = plt.subplots(1, figsize=(16, 6))
     
     cycles = range(0, len(times))
-    color='#1f7ef2'
-    ax.bar(cycles, times)
+    color='#1f7ef280'
+    
+    ax.bar(cycles, times, color=color)
+    # ax.plot(cycles, times, color=color)
+    # ax.scatter(cycles, times)
 
     xticks = np.arange(0, len(times), 1)
     ax.set_xticks(xticks)
@@ -258,8 +261,11 @@ def plot_global_cycles(file):
     ax.set_axisbelow(True)
     ax.yaxis.grid(color='gray', linestyle='dashed')
 
-    # for i in range(1, len(cycles)+1):
-    #     plt.text(i, times[i-1]/2, times[i-1], ha="center")
+    y_mean = [np.median(times)] * len(times)
+
+    print(f'median: {np.median(times)}')
+
+    ax.plot(cycles, y_mean, label='Mean', linestyle='--', color='green')
 
     plt.show()
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from operator import is_
 
 from typing import Dict, List, Tuple
 from pprint import pprint
@@ -152,7 +153,7 @@ class VisualInspector:
     def plot_cycles(self, fig, ax):
         return plot_last_2_cycles(fig, ax, self.cycle_cache)
 
-    def get_object_closest_to_line(self, detections, object_id, line_y, check_top=True, buffer=30):
+    def get_object_closest_to_line(self, detections, object_id, line_y, check_top=True, buffer=30, min_bbox_height=35):
         min_diff = float('inf')
         closest_obj_y  = -1
 
@@ -161,8 +162,15 @@ class VisualInspector:
                 # check crossing with bbox top or bbox bottom
                 y_to_check = y1 if check_top else y2
                 diff = abs(y_to_check - line_y)
+                
+                # check size of bbox, only for horn
+                is_speedo = object_id == self.start_marker_object_id
+                too_small = False if is_speedo else ((y2 - y1) < min_bbox_height)
 
-                if diff < min_diff:
+                if not is_speedo:
+                    print('bbox height: ', y2 - y1)
+
+                if diff < min_diff and not too_small:
                     min_diff = diff
                     closest_obj_y = y_to_check
         
@@ -173,6 +181,7 @@ class VisualInspector:
         if min_diff > buffer:
             print(f'{self.marker_names[object_id]} not close enough to line...')
             return -1
+
         
         return closest_obj_y 
 
