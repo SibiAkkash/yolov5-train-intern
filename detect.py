@@ -336,7 +336,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                     print('trying to quit')
                     break
 
-
             # Save results (image with detections)
             if save_img:
                 if dataset.mode == 'image':
@@ -401,11 +400,9 @@ def parse_opt():
     print_args(FILE.stem, opt)
     return opt
 
-
 def main(opt):
     # check_requirements(exclude=('tensorboard', 'thop'))
     run(**vars(opt))
-
 
 if __name__ == "__main__":
     opt = parse_opt()
