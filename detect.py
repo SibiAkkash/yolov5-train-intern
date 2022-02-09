@@ -86,8 +86,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         hide_labels=False,  # hide labels
         hide_conf=False,  # hide confidences
         half=False,  # use FP16 half-precision inference
-        dnn=False,  # use OpenCV DNN for ONNX inference
-        ):
+        dnn=False,  # use OpenCV DNN for ONNX inference,
+        show_overlay=False, # show debug overlay,
+        cycle_times_save_path=ROOT / 'cycle_times/cycle_times.txt' # file to save cycle times
+):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
@@ -136,31 +138,25 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     print(f'{fps = }')
 
     vid_path, vid_writer = [None] * bs, [None] * bs
-
-    # print(names) 
-    # [ 
-    #   'horn',
-    #   'speedo',
-    #   'exposed_fork',
-    #   'torque_tool_hanging',
-    #   'torque_tool_inserted',
-    #   'ball_bearing_tool',
-    #   'QR_code_scanner', 
-    #   'wheel_with_fender'
-    # ]
-    
-    ENTRY_LINE_Y = 100
+ 
+    # ENTRY_LINE_Y = 100
     # ENTRY_LINE_Y = 80
-    EXIT_LINE_Y = 620
-    # EXIT_LINE_Y = 550
+    EXIT_LINE_Y_HORN = 620
+    # EXIT_LINE_Y_HORN = 550
+    ENTRY_LINE_Y = 120
+    EXIT_LINE_Y_WHEEL = 710
+
 
     inspector = VisualInspector(
         start_marker_object_id=names.index('speedo'),
-        end_marker_object_id=names.index('horn'),
+        end_marker_object_id=names.index('wheel_with_fender'),
+        start_marker_check_top=True,
+        end_marker_check_top=True,
         marker_names=names,
         entry_line_y=ENTRY_LINE_Y,
-        exit_line_y=EXIT_LINE_Y,
-        stream_fps=fps
+        exit_line_y=EXIT_LINE_Y_WHEEL,
+        stream_fps=fps,
+        cycle_times_save_path=cycle_times_save_path
     )
 
     # to draw plots
@@ -255,7 +251,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        annotator.box_label(xyxy, label, color=colors(c, True))
+                        annotator.box_label(xyxy, label, color=colors(c, True), show_center=False)
                         if save_crop:
                             save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
 
@@ -284,37 +280,42 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             # Stream results
             im0 = annotator.result()
 
-            H, W, _ = im0.shape
-            BUFFER = 30
+            if show_overlay:
+                H, W, _ = im0.shape
+                BUFFER = 30
 
-            # top line
-            cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 200, 0), 2)
-            cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
-            cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 200, 0), 2)
-            # bottom line
-            cv2.line(im0, (0, EXIT_LINE_Y - BUFFER), (W, EXIT_LINE_Y - BUFFER), (0, 200, 0), 2)
-            cv2.line(im0, (0, EXIT_LINE_Y), (W, EXIT_LINE_Y), (0, 255, 0), 2)
-            cv2.line(im0, (0, EXIT_LINE_Y + BUFFER), (W, EXIT_LINE_Y + BUFFER), (0, 200, 0), 2)
+                # top line
+                cv2.line(im0, (0, ENTRY_LINE_Y - BUFFER), (W, ENTRY_LINE_Y - BUFFER), (0, 200, 0), 2)
+                cv2.line(im0, (0, ENTRY_LINE_Y), (W, ENTRY_LINE_Y), (0, 255, 0), 2)            
+                cv2.line(im0, (0, ENTRY_LINE_Y + BUFFER), (W, ENTRY_LINE_Y + BUFFER), (0, 200, 0), 2)
+                
+                # bottom line, horn end marker
+                # cv2.line(im0, (0, EXIT_LINE_Y_HORN - BUFFER), (W, EXIT_LINE_Y_HORN - BUFFER), (0, 200, 0), 2)
+                # cv2.line(im0, (0, EXIT_LINE_Y_HORN), (W, EXIT_LINE_Y_HORN), (0, 255, 0), 2)
+                # cv2.line(im0, (0, EXIT_LINE_Y_HORN + BUFFER), (W, EXIT_LINE_Y_HORN + BUFFER), (0, 200, 0), 2)
 
-            # show cycle status
+                # bottom line, horn end marker
+                cv2.line(im0, (0, EXIT_LINE_Y_WHEEL - BUFFER), (W, EXIT_LINE_Y_WHEEL - BUFFER), (0, 200, 0), 2)
+                cv2.line(im0, (0, EXIT_LINE_Y_WHEEL), (W, EXIT_LINE_Y_WHEEL), (0, 255, 0), 2)
+                cv2.line(im0, (0, EXIT_LINE_Y_WHEEL + BUFFER), (W, EXIT_LINE_Y_WHEEL + BUFFER), (0, 200, 0), 2)
 
-            cv2.rectangle(
-                img=im0,
-                pt1=(20, 820),
-                pt2=(500, 870),
-                color=(100, 100, 100),
-                thickness=-1
-            )
-
-            cv2.putText(
-                img=im0,
-                text=inspector.status,
-                org=(30, 850),
-                fontFace=0,
-                fontScale=0.8,
-                color=(0, 255, 0),
-                thickness=2
-            )
+                # show cycle status
+                cv2.rectangle(
+                    img=im0,
+                    pt1=(20, 820),
+                    pt2=(500, 870),
+                    color=(100, 100, 100),
+                    thickness=-1
+                )
+                cv2.putText(
+                    img=im0,
+                    text=inspector.status,
+                    org=(30, 850),
+                    fontFace=0,
+                    fontScale=0.8,
+                    color=(0, 255, 0),
+                    thickness=2
+                )
 
             if view_img:
                 plot_img = inspector.plot_cycles(fig, ax)
@@ -393,6 +394,8 @@ def parse_opt():
     parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
+    parser.add_argument('--show-overlay', action='store_true', help='show debug overlay')
+    parser.add_argument('--cycle-times-save-path', type=str, default=ROOT / 'cycle_times/cycle_times.txt')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)

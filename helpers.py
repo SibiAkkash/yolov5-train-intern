@@ -126,8 +126,6 @@ colors = [
     '#9C0F48',
 ]
 
-
-
 def plot_last_2_cycles(fig, ax, cycles):
     for i, cycle in enumerate(cycles):
         plt.subplot(int(f'21{i+1}'))
@@ -247,15 +245,17 @@ def plot_global_cycles(file):
     cycles = range(0, len(times))
     color='#1f7ef280'
     
-    ax.bar(cycles, times, color=color)
+    # ax.bar(cycles, times, color=color)
     # ax.plot(cycles, times, color=color)
-    # ax.scatter(cycles, times)
+    ax.scatter(cycles, times)
 
-    xticks = np.arange(0, len(times), 1)
-    ax.set_xticks(xticks)
+    # xticks = np.arange(0, len(times), 1)
+    # ax.set_xticks(xticks)
+    yticks = np.arange(0, max(times), 10)
+    ax.set_yticks(yticks)
 
     ax.set_title("Global cycle times")
-    ax.set_xlabel("Cycle number")
+    # ax.set_xlabel("Cycle number")
     ax.set_ylabel("Cycle time (sec)")
 
     ax.set_axisbelow(True)
@@ -265,10 +265,10 @@ def plot_global_cycles(file):
 
     print(f'median: {np.median(times)}')
 
-    ax.plot(cycles, y_mean, label='Mean', linestyle='--', color='green')
+    ax.plot(cycles, y_mean, label='Mean', linestyle='dashed', color='green')
 
     plt.show()
 
 
 if __name__ == "__main__":
-    plot_global_cycles(file='cycle_times_2.txt')
+    plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')

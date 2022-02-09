@@ -82,7 +82,7 @@ class Annotator:
             self.im = im
         self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
 
-    def box_label(self, box, label='', color=(128, 128, 128), txt_color=(255, 255, 255)):
+    def box_label(self, box, label='', color=(128, 128, 128), txt_color=(255, 255, 255), show_center=False):
         # Add one xyxy box to image with label
         if self.pil or not is_ascii(label):
             self.draw.rectangle(box, width=self.lw, outline=color)  # box
@@ -106,6 +106,12 @@ class Annotator:
                 cv2.rectangle(self.im, p1, p2, color, -1, cv2.LINE_AA)  # filled
                 cv2.putText(self.im, label, (p1[0], p1[1] - 2 if outside else p1[1] + h + 2), 0, self.lw / 3, txt_color,
                             thickness=tf, lineType=cv2.LINE_AA)
+            
+            if show_center:
+                cx = (int(box[0]) + int(box[2])) // 2
+                cy = (int(box[1]) + int(box[3])) // 2
+                cv2.circle(self.im, (cx, cy), 4, color=(0, 255, 0), thickness=-1)
+
 
     def rectangle(self, xy, fill=None, outline=None, width=1):
         # Add rectangle to image (PIL-only)
