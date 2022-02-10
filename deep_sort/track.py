@@ -1,5 +1,6 @@
 # vim: expandtab:ts=4:sw=4
 
+from collections import deque
 
 class TrackState:
     """
@@ -81,6 +82,8 @@ class Track:
         self._max_age = max_age
         self.class_num = class_num
 
+        self.prev_locs = deque([]) # store bbox centers
+
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
         width, height)`.
@@ -142,6 +145,15 @@ class Track:
 
         self.hits += 1
         self.time_since_update = 0
+
+        x1, y1, x2, y2 = self.to_tlbr()
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+        self.prev_locs.append((cx, cy))
+
+        if len(self.prev_locs) > 50:
+            self.prev_locs.popleft()
+
         if self.state == TrackState.Tentative and self.hits >= self._n_init:
             self.state = TrackState.Confirmed
 
