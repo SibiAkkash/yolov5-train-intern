@@ -128,11 +128,9 @@ def run(
 
     # init clip model
     model_filename = "ViT-B/16"  # all model names in clip/clip.py
-    clip_model, clip_transform = clip.load(
-        name=model_filename, device=device
-    )
+    clip_model, clip_transform = clip.load(name=model_filename, device=device)
     clip_model.eval()
-    
+
     img_encoder = gdet.create_box_encoder(
         clip_model, clip_transform, batch_size=1, device=device
     )
@@ -170,9 +168,9 @@ def run(
     dt, seen = [0.0, 0.0, 0.0, 0.0, 0.0], 0
 
     for path, im, im0s, vid_cap, s in dataset:
-        
+
         fps = vid_cap.get(cv2.CAP_PROP_FPS)
-        
+
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -307,9 +305,9 @@ def run(
                     x2 = int(min(max(x2, 0), W))
                     y1 = int(min(max(y1, 0), H))
                     y2 = int(min(max(y2, 0), H))
-                    
+
                     label = f"{class_name} #{track.track_id}"
-                    
+
                     annotator.box_label(
                         bbox,
                         label,
@@ -327,16 +325,15 @@ def run(
                             color=(0, 173, 255),
                             thickness=-1,
                         )
-                    
-                                        
+
                     # draw_text_with_box(im0, text=f"{x2 - x1} x {y2- y1}", base_coords=(cx - 30, cy-20), fontScale=0.5, padding=2, thickness=1)
 
                     # crop = save_one_box(
                     #     xyxy, im0, save=True, file=Path("./crop_images/img")
                     # )
-                    
+
                 bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
-                    
+
                 # if track.track_id not in writers:
                 #     print(f"creating vid writer for scooter {track.track_id}")
                 #     writers[track.track_id] = cv2.VideoWriter(
@@ -358,22 +355,27 @@ def run(
                     print("trying to quit")
                     print("releasing vid writer")
                     vid_cap.release()
-                    # video_writer.release()
+                    video_writer.release()
                     raise StopIteration
                     # break
-            # video_writer.write(im0)
+
+            if not video_writer:
+                video_writer = cv2.VideoWriter(
+                    save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H)
+                )
+
+            video_writer.write(im0)
 
     print("releasing vid writer")
-    # video_writer.release()
-    
+    video_writer.release()
+
     # write bbox sizes to csv file
-    with open("cycle_times/bbox_sizes.csv", 'w') as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter=',')
-        csv_writer.writerow(['scooter_id', 'w', 'h'])
+    with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
+        csv_writer = csv.writer(csv_file, delimiter=",")
+        csv_writer.writerow(["scooter_id", "w", "h"])
         for scooter_id in bbox_sizes:
             for (w, h) in bbox_sizes[scooter_id]:
                 csv_writer.writerow([scooter_id, w, h])
-    
 
     # Print results
     t = tuple(x / seen * 1e3 for x in dt)  # speeds per image
