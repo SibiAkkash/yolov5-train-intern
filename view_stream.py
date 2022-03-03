@@ -12,11 +12,6 @@ def view():
         cnt += 1
         cv2.imshow("stream", img0[0])
 
-<<<<<<< HEAD
-    print(cnt)
-
-view()
-=======
 
 def record(save_path: str):
     stream = LoadStreams(sources=source)
@@ -32,4 +27,3 @@ def record(save_path: str):
     for _, _, img0, _, _ in stream:
         # im = cv2.resize(img0[0], (480, 640))
         cv2.imshow("stream", img0[0])
->>>>>>> 7a1547f07ec774e2d98b2d247f297ad8da03b53b
