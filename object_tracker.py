@@ -81,8 +81,8 @@ def run(
     half=False,  # use FP16 half-precision inference
     dnn=False,  # use OpenCV DNN for ONNX inference,
     show_overlay=False,  # show debug overlay,
-    cycle_times_save_path=ROOT
-    / "cycle_times/cycle_times.txt",  # file to save cycle times
+    cycle_times_save_path=ROOT / "cycle_times/cycle_times.txt",  # file to save cycle times,
+    save_crop_vids=False
 ):
 
     # params for tracking
@@ -141,7 +141,7 @@ def run(
     )
 
     # initialize tracker
-    tracker = Tracker(metric, max_iou_distance=0.7, max_age=100, n_init=10)
+    tracker = Tracker(metric, max_iou_distance=0.7, max_age=150, n_init=10)
 
     # Dataloader
     if webcam:
@@ -167,6 +167,8 @@ def run(
     # Run inference
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
     dt, seen = [0.0, 0.0, 0.0], 0
+
+    os.makedirs("crop_videos", exist_ok=True)
 
     for path, im, im0s, vid_cap, s in dataset:
 
@@ -301,23 +303,17 @@ def run(
                     )
                     continue
 
-                cx = (int(bbox[0]) + int(bbox[2])) // 2
-                cy = (int(bbox[1]) + int(bbox[3])) // 2
-                if cy >= 700:
+                bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
+                
+                if bbox_center_y >= 700:
                     track.state = TrackState.Deleted
                     print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
                     continue
 
-                # BBox Coords (xmin, ymin, xmax, ymax): {(int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))}
                 print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
 
-                if save_img or view_img:
-                    x1, y1, x2, y2 = bbox
-                    x1 = int(min(max(x1, 0), W))
-                    x2 = int(min(max(x2, 0), W))
-                    y1 = int(min(max(y1, 0), H))
-                    y2 = int(min(max(y2, 0), H))
-
+                # annotate image
+                if view_img:
                     label = f"{class_name} #{track.track_id}"
 
                     annotator.box_label(
@@ -338,28 +334,42 @@ def run(
                             thickness=-1,
                         )
 
-                    # draw_text_with_box(im0, text=f"{x2 - x1} x {y2- y1}", base_coords=(cx - 30, cy-20), fontScale=0.5, padding=2, thickness=1)
 
-                    # crop = save_one_box(
-                    #     xyxy, im0, save=True, file=Path("./crop_images/img")
-                    # )
+                if save_crop_vids:
+                    x1, y1, x2, y2 = bbox
+                    x1 = int(min(max(x1, 0), W))
+                    x2 = int(min(max(x2, 0), W))
+                    y1 = int(min(max(y1, 0), H))
+                    y2 = int(min(max(y2, 0), H))
 
-                bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
+                    bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
 
-                # if track.track_id not in writers:
-                #     print(f"creating vid writer for scooter {track.track_id}")
-                #     writers[track.track_id] = cv2.VideoWriter(
-                #         f"crop_videos/scooter_{track.track_id}.mp4",
-                #         cv2.VideoWriter_fourcc(*"mp4v"),
-                #         fps,
-                #         (W, H),
-                #         True
-                #     )
-
+                    if track.track_id not in writers:
+                        print(f"creating vid writer for scooter {track.track_id}")
+                        video_path = f"crop_videos/{p.name.split('.')[0]}_scooter_{track.track_id}.mp4"
+                        writers[track.track_id] = cv2.VideoWriter(
+                            video_path,
+                            cv2.VideoWriter_fourcc(*"mp4v"),
+                            fps,
+                            (400, 800),
+                            True
+                        )
+                        
+                    # write cropped image to respective video file
+                    # TODO pad cropped image to get have uniform dimension
+                    y_new = max(0, y1 - 100)
+                    x_new = min(W, x2 + 50)
+                    
+                    crop = im0[y_new:y2, x1:x_new]
+                    crop = cv2.resize(crop, (400, 800))
+                    writers[track.track_id].write(crop)
+                
+        
             # Stream results
             im0 = annotator.result()
             cv2.line(im0, (0, EXIT_LINE), (W, EXIT_LINE), (0, 255, 0), 2)
 
+            # show output
             if view_img:
                 cv2.imshow(str(p), im0)
 
@@ -369,25 +379,30 @@ def run(
                     vid_cap.release()
                     video_writer.release()
                     raise StopIteration
-                    # break
 
-            if not video_writer:
-                video_writer = cv2.VideoWriter(
-                    save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H)
-                )
+            # save full video
+            if save_img:
+                if not video_writer:
+                    video_writer = cv2.VideoWriter(
+                        save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H)
+                    )
+                video_writer.write(im0)
 
-            video_writer.write(im0)
 
     print("releasing vid writer")
     video_writer.release()
+    
+    for scooter_id in writers:
+        print(f"releasing scooter {scooter_id} video writer")
+        writers[scooter_id].release()
 
     # write bbox sizes to csv file
-    with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter=",")
-        csv_writer.writerow(["scooter_id", "w", "h"])
-        for scooter_id in bbox_sizes:
-            for (w, h) in bbox_sizes[scooter_id]:
-                csv_writer.writerow([scooter_id, w, h])
+    # with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
+    #     csv_writer = csv.writer(csv_file, delimiter=",")
+    #     csv_writer.writerow(["scooter_id", "w", "h"])
+    #     for scooter_id in bbox_sizes:
+    #         for (w, h) in bbox_sizes[scooter_id]:
+    #             csv_writer.writerow([scooter_id, w, h])
 
     # Print results
     t = tuple(x / seen * 1e3 for x in dt)  # speeds per image
@@ -497,6 +512,9 @@ def parse_opt():
     )
     parser.add_argument(
         "--show-overlay", action="store_true", help="show debug overlay"
+    )
+    parser.add_argument(
+        "--save-crop-vids", action="store_true", help="show debug overlay"
     )
     parser.add_argument(
         "--cycle-times-save-path",
