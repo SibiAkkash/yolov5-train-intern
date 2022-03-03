@@ -345,10 +345,9 @@ class LoadStreams:
                     # rotate img
                     im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
                     # resize img
-                    # im = cv2.resize(im, (540, 960))
+                    im = cv2.resize(im, (540, 960)) # for 16:9 aspect ratio
                     # im = cv2.resize(im, (720, 960))
                     # im = cv2.resize(im, (360, 640))
-
 
                     self.imgs[i] = im
                 else:

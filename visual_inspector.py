@@ -56,7 +56,7 @@ class VisualInspector:
         self.waiting_for_speedo_to_cross = False
         self.waiting_to_see_inside_horn = False
 
-        self.status = "waiting for end_marker cross"
+        self.status = "waiting for vehicle to cross"
 
         self.found_inside_horn = False
 
@@ -269,7 +269,7 @@ class VisualInspector:
             self.waiting_for_horn_to_cross = False
             self.waiting_to_see_inside_horn = False
 
-            self.status = "waiting for start_marker cross"
+            self.status = "waiting for vehicle to enter"
 
 
     def _wait_for_start_marker_cross(
@@ -340,7 +340,7 @@ class VisualInspector:
         self.waiting_for_speedo_to_cross = False
         self.waiting_to_see_inside_horn = False
 
-        self.status = "waiting for end_marker cross"
+        self.status = "waiting for vehicle to cross"
 
 
     # 1. if cycle seen = 0, wait for closest end_marker (horn) to change state
