@@ -88,7 +88,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference,
         show_overlay=False, # show debug overlay,
-        cycle_times_save_path=ROOT / 'cycle_times/cycle_times.txt' # file to save cycle times
+        cycle_times_save_path=ROOT / 'cycle_times/cycle_times.txt', # file to save cycle times
+        show_cycle_times=False
 ):
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -106,6 +107,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data)
     stride, names, pt, jit, onnx, engine = model.stride, model.names, model.pt, model.jit, model.onnx, model.engine
+
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
     # initialise hand tracker
@@ -132,10 +134,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride, auto=pt)
         bs = 1  # batch_size
-        fps = dataset.cap.get(cv2.CAP_PROP_FPS)
+        # fps = dataset.cap.get(cv2.CAP_PROP_FPS)
         stream = False
 
-    print(f'{fps = }')
+    # print(f'{fps = }')
 
     vid_path, vid_writer = [None] * bs, [None] * bs
  
@@ -147,17 +149,17 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     EXIT_LINE_Y_WHEEL = 710
 
 
-    inspector = VisualInspector(
-        start_marker_object_id=names.index('speedo'),
-        end_marker_object_id=names.index('wheel_with_fender'),
-        start_marker_check_top=True,
-        end_marker_check_top=True,
-        marker_names=names,
-        entry_line_y=ENTRY_LINE_Y,
-        exit_line_y=EXIT_LINE_Y_WHEEL,
-        stream_fps=fps,
-        cycle_times_save_path=cycle_times_save_path
-    )
+    # inspector = VisualInspector(
+    #     start_marker_object_id=names.index('speedo'),
+    #     end_marker_object_id=names.index('wheel_with_fender'),
+    #     start_marker_check_top=True,
+    #     end_marker_check_top=True,
+    #     marker_names=names,
+    #     entry_line_y=ENTRY_LINE_Y,
+    #     exit_line_y=EXIT_LINE_Y_WHEEL,
+    #     stream_fps=fps,
+    #     cycle_times_save_path=cycle_times_save_path
+    # )
 
     # to draw plots
     fig, ax = plt.subplots(2, 1, figsize=(16, 12))
@@ -257,13 +259,13 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
 
 
-            frame_num = dataset.count if stream else dataset.frame
+            # frame_num = dataset.count if stream else dataset.frame
             
-            inspector.process_detections_2(
-                frame_num=frame_num, 
-                detections=detections, 
-                current_frame=im0
-            )
+            # inspector.process_detections_2(
+            #     frame_num=frame_num, 
+            #     detections=detections, 
+            #     current_frame=im0
+            # )
             
             # Print time (inference-only)
             # LOGGER.info(f'{s}Done. ({t3 - t2:.3f}s)')
@@ -318,21 +320,19 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 )
 
             if view_img:
-                plot_img = inspector.plot_cycles(fig, ax)
+                if show_cycle_times:
+                    plot_img = inspector.plot_cycles(fig, ax)
+                    ph, pw, _ = plot_img.shape # 600, 1600
+                    plot_img = cv2.resize(plot_img, (900, 960))
+                    # plot_img = cv2.resize(plot_img, (900, 640))
+                    # stack stream and plot vertically
+                    stacked = np.hstack((im0, plot_img))
+                    cv2.imshow(str(p), stacked)
 
-                ph, pw, _ = plot_img.shape # 600, 1600
+                else:
+                    cv2.imshow(str(p), im0)
 
-                plot_img = cv2.resize(plot_img, (900, 960))
-                # plot_img = cv2.resize(plot_img, (900, 640))
-
-                # stack stream and plot vertically
-                stacked = np.hstack((im0, plot_img))
-
-                cv2.imshow(str(p), stacked)
-
-                key = cv2.waitKey(5)
-
-                if key == ord('q'):
+                if cv2.waitKey(5) == ord('q'):
                     print('trying to quit')
                     break
 
@@ -395,6 +395,7 @@ def parse_opt():
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--show-overlay', action='store_true', help='show debug overlay')
     parser.add_argument('--cycle-times-save-path', type=str, default=ROOT / 'cycle_times/cycle_times.txt')
+    parser.add_argument('--show-cycle-times', action='store_true', help='show cycle time barplot')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(FILE.stem, opt)

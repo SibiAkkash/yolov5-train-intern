@@ -151,7 +151,7 @@ class Track:
         cy = (y1 + y2) // 2
         self.prev_locs.append((cx, cy))
 
-        if len(self.prev_locs) > 50:
+        if len(self.prev_locs) > 150:
             self.prev_locs.popleft()
 
         if self.state == TrackState.Tentative and self.hits >= self._n_init:
@@ -164,6 +164,7 @@ class Track:
             self.state = TrackState.Deleted
         elif self.time_since_update > self._max_age:
             self.state = TrackState.Deleted
+            print(f"{self.track_id} DELETED")
 
     def is_tentative(self):
         """Returns True if this track is tentative (unconfirmed).
