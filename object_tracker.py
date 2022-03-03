@@ -2,6 +2,7 @@ import argparse
 from collections import defaultdict
 import csv
 from itertools import cycle
+from logging import Logger
 from multiprocessing.spawn import prepare
 import os
 import sys
@@ -242,11 +243,15 @@ def run(
                 confs = det[:, 4].cpu()
                 class_nums = det[:, -1].cpu()
 
+            
+            LOGGER.info(f'Time for yolo inference. ({t3 - t2:.3f}s)')
+
             # encode yolo detections and feed to tracker
             t4 = time_sync()
             features = img_encoder(im0, bboxes)
             t5 = time_sync()
-            dt[3] += t5 - t4
+            
+            LOGGER.info(f'Time for encoding boxes: {t5 - t4:.3}s')
 
             detections = [
                 Detection(bbox, conf, class_num, feature)
@@ -264,12 +269,19 @@ def run(
             indices = preprocessing.non_max_suppression(
                 boxes, class_nums, nms_max_overlap, scores
             )
+            t6 = time_sync()
+            
+            LOGGER.info(f'Time for nms (tracker): {t6 - t5:.3}s')
 
             detections = [detections[i] for i in indices]
 
+            t7 = time_sync()
             # call the tracker
             tracker.predict()
             tracker.update(detections)
+            t8 = time_sync()
+            LOGGER.info(f'Time for track matching: {t8 - t7:.3}s')
+            
 
             if len(tracker.tracks):
                 print("[Tracks]", len(tracker.tracks))
