@@ -103,6 +103,8 @@ def run(
     (save_dir / "labels" if save_txt else save_dir).mkdir(
         parents=True, exist_ok=True
     )  # make dir
+    crops_save_dir = increment_path("videos/crops", exist_ok=exist_ok, mkdir=True)
+
 
     # Load model
     device = select_device(device)
@@ -168,7 +170,6 @@ def run(
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
     dt, seen = [0.0, 0.0, 0.0], 0
 
-    os.makedirs("crop_videos", exist_ok=True)
 
     for path, im, im0s, vid_cap, s in dataset:
 
@@ -250,7 +251,8 @@ def run(
 
             # encode yolo detections and feed to tracker
             t4 = time_sync()
-            features = img_encoder(im0, bboxes)
+            with torch.no_grad():
+                features = img_encoder(im0, bboxes)
             t5 = time_sync()
             
             LOGGER.info(f'Time for encoding boxes: {t5 - t4:.3}s')
@@ -308,6 +310,9 @@ def run(
                 if bbox_center_y >= 700:
                     track.state = TrackState.Deleted
                     print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
+                    if track.track_id in writers:
+                        print(f"releasing scooter {track.track_id} video writer")
+                        writers[track.track_id].release()
                     continue
 
                 print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
@@ -346,9 +351,10 @@ def run(
 
                     if track.track_id not in writers:
                         print(f"creating vid writer for scooter {track.track_id}")
-                        video_path = f"crop_videos/{p.name.split('.')[0]}_scooter_{track.track_id}.mp4"
+                        video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
+                        print(video_path)
                         writers[track.track_id] = cv2.VideoWriter(
-                            video_path,
+                            str(video_path),
                             cv2.VideoWriter_fourcc(*"mp4v"),
                             fps,
                             (400, 800),
@@ -392,9 +398,9 @@ def run(
     print("releasing vid writer")
     video_writer.release()
     
-    for scooter_id in writers:
-        print(f"releasing scooter {scooter_id} video writer")
-        writers[scooter_id].release()
+    # for scooter_id in writers:
+    #     print(f"releasing scooter {scooter_id} video writer")
+    #     writers[scooter_id].release()
 
     # write bbox sizes to csv file
     # with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
