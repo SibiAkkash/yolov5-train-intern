@@ -166,7 +166,7 @@ def run(
 
     # Run inference
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
-    dt, seen = [0.0, 0.0, 0.0, 0.0, 0.0], 0
+    dt, seen = [0.0, 0.0, 0.0], 0
 
     for path, im, im0s, vid_cap, s in dataset:
 
