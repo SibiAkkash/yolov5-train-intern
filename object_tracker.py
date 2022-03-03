@@ -142,7 +142,7 @@ def run(
     )
 
     # initialize tracker
-    tracker = Tracker(metric, max_iou_distance=0.7, max_age=50, n_init=10)
+    tracker = Tracker(metric, max_iou_distance=0.7, max_age=100, n_init=10)
 
     # Dataloader
     if webcam:
