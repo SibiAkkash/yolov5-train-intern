@@ -107,6 +107,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     device = select_device(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data)
     stride, names, pt, jit, onnx, engine = model.stride, model.names, model.pt, model.jit, model.onnx, model.engine
+    print(names)
 
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
@@ -134,7 +135,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride, auto=pt)
         bs = 1  # batch_size
-        # fps = dataset.cap.get(cv2.CAP_PROP_FPS)
+        fps = dataset.cap.get(cv2.CAP_PROP_FPS)
         stream = False
 
     # print(f'{fps = }')
@@ -332,9 +333,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 else:
                     cv2.imshow(str(p), im0)
 
-                if cv2.waitKey(5) == ord('q'):
-                    print('trying to quit')
-                    break
+                # if cv2.waitKey(5) == ord('q'):
+                #     print('trying to quit')
+                #     # vid_writer[i].release()
+                #     break
 
             # Save results (image with detections)
             if save_img:
