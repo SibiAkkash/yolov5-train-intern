@@ -151,7 +151,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
 
     # inspector = VisualInspector(
-    #     start_marker_object_id=names.index('speedo'),
+    #     start_marker_object_id=names.index('speedo'),vid_writer[i].release()
     #     end_marker_object_id=names.index('wheel_with_fender'),
     #     start_marker_check_top=True,
     #     end_marker_check_top=True,

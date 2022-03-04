@@ -1,4 +1,6 @@
 import argparse
+from collections import defaultdict
+from email.policy import default
 from itertools import cycle
 from logging import Logger
 from multiprocessing.spawn import prepare
@@ -43,9 +45,13 @@ from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
 
 from deep_sort import nn_matching, preprocessing
+from deep_sort.track import TrackState
 from deep_sort.tracker import Tracker
 from deep_sort.detection import Detection
 import generate_clip_detections as gdet
+
+from vidgear.gears import CamGear
+from vidgear.gears import WriteGear
 
 
 @torch.no_grad()
@@ -77,8 +83,9 @@ def run(
     half=False,  # use FP16 half-precision inference
     dnn=False,  # use OpenCV DNN for ONNX inference,
     show_overlay=False,  # show debug overlay,
-    cycle_times_save_path=ROOT / "cycle_times/cycle_times.txt",  # file to save cycle times,
-    save_crop_vids=False
+    cycle_times_save_path=ROOT
+    / "cycle_times/cycle_times.txt",  # file to save cycle times,
+    save_crop_vids=False,
 ):
 
     # params for tracking
@@ -100,7 +107,6 @@ def run(
         parents=True, exist_ok=True
     )  # make dir
     crops_save_dir = increment_path("videos/crops", exist_ok=exist_ok, mkdir=True)
-
 
     # Load model
     device = select_device(device)
@@ -127,7 +133,7 @@ def run(
 
     # init clip model
     model_filename = "ViT-B/16"  # all model names in clip/clip.py
-    clip_model, clip_transform = clip.load(name=model_filename, device=device)
+    clip_model, clip_transform = clip.load(name=model_filename, device=device, jit=True)
     clip_model.eval()
 
     img_encoder = gdet.create_box_encoder(
@@ -161,11 +167,13 @@ def run(
 
     # Run inference
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
-    dt, seen = [0.0, 0.0, 0.0], 0
-
+    dt, seen = [0.0] * 6, 0
+    video_writer = None
+    writers = defaultdict(None)
+    bbox_sizes = defaultdict(list)
 
     for path, im, im0s, vid_cap, s in dataset:
-        
+
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -236,17 +244,20 @@ def run(
                 bboxes = trans_bboxes[:, :4].cpu()  # why indexing again ?
                 confs = det[:, 4].cpu()
                 class_nums = det[:, -1].cpu()
+            else:
+                # print('no detections yet')
+                continue
 
-            
-            LOGGER.info(f'Time for yolo inference. ({t3 - t2:.3f}s)')
+            LOGGER.info(f"Time for yolo inference. {t3 - t2:.3f}s")
 
             # encode yolo detections and feed to tracker
-            t4 = time_sync()
             with torch.no_grad():
+                t4 = time_sync()
                 features = img_encoder(im0, bboxes)
-            t5 = time_sync()
-            
-            LOGGER.info(f'Time for encoding boxes: {t5 - t4:.3}s')
+                t5 = time_sync()
+            dt[3] += t5 - t4
+
+            LOGGER.info(f"Time for encoding boxes: {t5 - t4:.3}s")
 
             detections = [
                 Detection(bbox, conf, class_num, feature)
@@ -260,26 +271,31 @@ def run(
             scores = np.array([d.confidence for d in detections])
             class_nums = np.array([d.class_num for d in detections])
 
+            t6 = time_sync()
             # supress overlapping detections
             indices = preprocessing.non_max_suppression(
                 boxes, class_nums, nms_max_overlap, scores
             )
-            t6 = time_sync()
-            
-            LOGGER.info(f'Time for nms (tracker): {t6 - t5:.3}s')
+            t7 = time_sync()
+            dt[4] += t7 - t6
+
+            LOGGER.info(f"Time for nms (tracker): {t7 - t6:.3}s")
 
             detections = [detections[i] for i in indices]
 
-            t7 = time_sync()
+            t8 = time_sync()
             # call the tracker
             tracker.predict()
             tracker.update(detections)
-            t8 = time_sync()
-            LOGGER.info(f'Time for track matching: {t8 - t7:.3}s')
-            
+            t9 = time_sync()
+            dt[5] += t9 - t8
+            LOGGER.info(f"Time for track matching: {t9 - t8:.3}s")
 
             if len(tracker.tracks):
                 print("[Tracks]", len(tracker.tracks))
+
+            H, W, _ = im0.shape
+            EXIT_LINE = 700
 
             for track in tracker.tracks:
                 xyxy = track.to_tlbr()
@@ -288,22 +304,48 @@ def run(
                 class_name = names[int(class_num)]
 
                 if not track.is_confirmed() or track.time_since_update > 1:
-                    print(
-                        f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
-                    )
+                    # print(
+                    #     f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
+                    # )
                     continue
 
                 bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
-                
+
                 if bbox_center_y >= 700:
                     track.state = TrackState.Deleted
-                    print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
+                    # print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
                     if track.track_id in writers:
-                        print(f"releasing scooter {track.track_id} video writer")
-                        writers[track.track_id].release()
+                        print(
+                            f"\n\n\nreleasing scooter {track.track_id} video writer\n\n\n"
+                        )
+                        writers[track.track_id].close()  # using VideoGear
                     continue
 
                 print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
+
+                if save_crop_vids:
+                    x1, y1, x2, y2 = bbox
+                    x1 = int(min(max(x1, 0), W))
+                    x2 = int(min(max(x2, 0), W))
+                    y1 = int(min(max(y1, 0), H))
+                    y2 = int(min(max(y2, 0), H))
+
+                    bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
+
+                    if track.track_id not in writers:
+                        print(f"creating vid writer for scooter {track.track_id}")
+                        video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
+                        print(video_path)
+                        writers[track.track_id] = WriteGear(output_filename=video_path)
+
+                    # write cropped image to respective video file
+                    # TODO pad cropped image to get have uniform dimension
+                    y_new = max(0, y1 - 100)
+                    x_new = min(W, x2 + 50)
+
+                    crop = im0[y_new:y2, x1:x_new]
+                    crop = cv2.resize(crop, (400, 800))
+                    writers[track.track_id].write(crop)
 
                 # annotate image
                 if view_img:
@@ -326,50 +368,20 @@ def run(
                             thickness=-1,
                         )
 
-                if save_crop_vids:
-                    x1, y1, x2, y2 = bbox
-                    x1 = int(min(max(x1, 0), W))
-                    x2 = int(min(max(x2, 0), W))
-                    y1 = int(min(max(y1, 0), H))
-                    y2 = int(min(max(y2, 0), H))
-
-                    bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
-
-                    if track.track_id not in writers:
-                        print(f"creating vid writer for scooter {track.track_id}")
-                        video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
-                        print(video_path)
-                        writers[track.track_id] = cv2.VideoWriter(
-                            str(video_path),
-                            cv2.VideoWriter_fourcc(*"mp4v"),
-                            fps,
-                            (400, 800),
-                            True
-                        )
-                        
-                    # write cropped image to respective video file
-                    # TODO pad cropped image to get have uniform dimension
-                    y_new = max(0, y1 - 100)
-                    x_new = min(W, x2 + 50)
-                    
-                    crop = im0[y_new:y2, x1:x_new]
-                    crop = cv2.resize(crop, (400, 800))
-                    writers[track.track_id].write(crop)
-                
-        
             # Stream results
             im0 = annotator.result()
+            cv2.line(im0, (0, EXIT_LINE), (W, EXIT_LINE), (0, 255, 0), 2)
 
             # show output
             if view_img:
                 cv2.imshow(str(p), im0)
 
-                if cv2.waitKey(5) == ord("q"):
-                    print("trying to quit")
-                    print("releasing vid writer")
-                    vid_cap.release()
-                    video_writer.release()
-                    raise StopIteration
+                # if cv2.waitKey(5) == ord("q"):
+                #     print("trying to quit")
+                #     print("releasing vid writer")
+                # vid_cap.release()
+                # video_writer.release()
+                # raise StopIteration
 
             # save full video
             if save_img:
@@ -379,13 +391,8 @@ def run(
                     )
                 video_writer.write(im0)
 
-
-    print("releasing vid writer")
-    video_writer.release()
-    
-    # for scooter_id in writers:
-    #     print(f"releasing scooter {scooter_id} video writer")
-    #     writers[scooter_id].release()
+    # print("releasing vid writer")
+    # video_writer.release()
 
     # write bbox sizes to csv file
     # with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
@@ -397,8 +404,9 @@ def run(
 
     # Print results
     t = tuple(x / seen * 1e3 for x in dt)  # speeds per image
+
     LOGGER.info(
-        f"Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}"
+        f"Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS, %.1fms encoding, %.1fms NMS (tracks), %.1fms track matching per image at shape {(1, 3, *imgsz)}"
         % t
     )
     if save_txt or save_img:
