@@ -1,5 +1,6 @@
 import argparse
 from itertools import cycle
+from logging import Logger
 from multiprocessing.spawn import prepare
 import os
 import sys
@@ -76,8 +77,8 @@ def run(
     half=False,  # use FP16 half-precision inference
     dnn=False,  # use OpenCV DNN for ONNX inference,
     show_overlay=False,  # show debug overlay,
-    cycle_times_save_path=ROOT
-    / "cycle_times/cycle_times.txt",  # file to save cycle times
+    cycle_times_save_path=ROOT / "cycle_times/cycle_times.txt",  # file to save cycle times,
+    save_crop_vids=False
 ):
 
     # params for tracking
@@ -98,6 +99,8 @@ def run(
     (save_dir / "labels" if save_txt else save_dir).mkdir(
         parents=True, exist_ok=True
     )  # make dir
+    crops_save_dir = increment_path("videos/crops", exist_ok=exist_ok, mkdir=True)
+
 
     # Load model
     device = select_device(device)
@@ -124,9 +127,7 @@ def run(
 
     # init clip model
     model_filename = "ViT-B/16"  # all model names in clip/clip.py
-    clip_model, clip_transform = clip.load(
-        name=model_filename, device=device, jit=False
-    )
+    clip_model, clip_transform = clip.load(name=model_filename, device=device)
     clip_model.eval()
 
     img_encoder = gdet.create_box_encoder(
@@ -138,7 +139,7 @@ def run(
     )
 
     # initialize tracker
-    tracker = Tracker(metric, max_iou_distance=0.7, max_age=100, n_init=10)
+    tracker = Tracker(metric, max_iou_distance=0.7, max_age=150, n_init=10)
 
     # Dataloader
     if webcam:
@@ -162,7 +163,11 @@ def run(
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
     dt, seen = [0.0, 0.0, 0.0], 0
 
+
     for path, im, im0s, vid_cap, s in dataset:
+
+        fps = vid_cap.get(cv2.CAP_PROP_FPS)
+
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
         im = im.half() if half else im.float()  # uint8 to fp16/32
@@ -234,23 +239,17 @@ def run(
                 confs = det[:, 4].cpu()
                 class_nums = det[:, -1].cpu()
 
-                # Write results
-                # for *xyxy, conf, cls in reversed(det):
-                #     if save_txt:  # Write to file
-                #         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                #         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
-                #         with open(txt_path + '.txt', 'a') as f:
-                #             f.write(('%g ' * len(line)).rstrip() % line + '\n')
-
-                #     if save_img or save_crop or view_img:  # Add bbox to image
-                #         c = int(cls)  # integer class
-                #         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                #         annotator.box_label(xyxy, label, color=colors(c, True), show_center=False)
-                #         if save_crop:
-                #             save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
+            
+            LOGGER.info(f'Time for yolo inference. ({t3 - t2:.3f}s)')
 
             # encode yolo detections and feed to tracker
-            features = img_encoder(im0, bboxes)
+            t4 = time_sync()
+            with torch.no_grad():
+                features = img_encoder(im0, bboxes)
+            t5 = time_sync()
+            
+            LOGGER.info(f'Time for encoding boxes: {t5 - t4:.3}s')
+
             detections = [
                 Detection(bbox, conf, class_num, feature)
                 for bbox, conf, class_num, feature in zip(
@@ -267,12 +266,19 @@ def run(
             indices = preprocessing.non_max_suppression(
                 boxes, class_nums, nms_max_overlap, scores
             )
+            t6 = time_sync()
+            
+            LOGGER.info(f'Time for nms (tracker): {t6 - t5:.3}s')
 
             detections = [detections[i] for i in indices]
 
+            t7 = time_sync()
             # call the tracker
             tracker.predict()
             tracker.update(detections)
+            t8 = time_sync()
+            LOGGER.info(f'Time for track matching: {t8 - t7:.3}s')
+            
 
             if len(tracker.tracks):
                 print("[Tracks]", len(tracker.tracks))
@@ -284,17 +290,33 @@ def run(
                 class_name = names[int(class_num)]
 
                 if not track.is_confirmed() or track.time_since_update > 1:
-                    print(f'NOT CONFIRMED f"Tracker ID: {str(track.track_id)}, Class: {class_name}')
+                    print(
+                        f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
+                    )
                     continue
 
-                # BBox Coords (xmin, ymin, xmax, ymax): {(int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))}
-                print(
-                    f"Tracker ID: {str(track.track_id)}, Class: {class_name}"
-                )
+                bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
+                
+                if bbox_center_y >= 700:
+                    track.state = TrackState.Deleted
+                    print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
+                    if track.track_id in writers:
+                        print(f"releasing scooter {track.track_id} video writer")
+                        writers[track.track_id].release()
+                    continue
 
-                if save_img or view_img:
+                print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
+
+                # annotate image
+                if view_img:
                     label = f"{class_name} #{track.track_id}"
-                    annotator.box_label(bbox, label, color=colors(int(class_num), True))
+
+                    annotator.box_label(
+                        bbox,
+                        label,
+                        color=colors(int(class_num), True),
+                        show_center=True,
+                    )
 
                     # plot prev bbox centers
                     for cx, cy in track.prev_locs:
@@ -306,36 +328,74 @@ def run(
                             thickness=-1,
                         )
 
+                if save_crop_vids:
+                    x1, y1, x2, y2 = bbox
+                    x1 = int(min(max(x1, 0), W))
+                    x2 = int(min(max(x2, 0), W))
+                    y1 = int(min(max(y1, 0), H))
+                    y2 = int(min(max(y2, 0), H))
+
+                    bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
+
+                    if track.track_id not in writers:
+                        print(f"creating vid writer for scooter {track.track_id}")
+                        video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
+                        print(video_path)
+                        writers[track.track_id] = cv2.VideoWriter(
+                            str(video_path),
+                            cv2.VideoWriter_fourcc(*"mp4v"),
+                            fps,
+                            (400, 800),
+                            True
+                        )
+                        
+                    # write cropped image to respective video file
+                    # TODO pad cropped image to get have uniform dimension
+                    y_new = max(0, y1 - 100)
+                    x_new = min(W, x2 + 50)
+                    
+                    crop = im0[y_new:y2, x1:x_new]
+                    crop = cv2.resize(crop, (400, 800))
+                    writers[track.track_id].write(crop)
+                
+        
             # Stream results
             im0 = annotator.result()
 
+            # show output
             if view_img:
                 cv2.imshow(str(p), im0)
 
                 if cv2.waitKey(5) == ord("q"):
                     print("trying to quit")
-                    break
+                    print("releasing vid writer")
+                    vid_cap.release()
+                    video_writer.release()
+                    raise StopIteration
 
-            # Save results (image with detections)
+            # save full video
             if save_img:
-                if dataset.mode == "image":
-                    cv2.imwrite(save_path, im0)
-                else:  # 'video' or 'stream'
-                    if vid_path[i] != save_path:  # new video
-                        vid_path[i] = save_path
-                        if isinstance(vid_writer[i], cv2.VideoWriter):
-                            vid_writer[i].release()  # release previous video writer
-                        if vid_cap:  # video
-                            fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                            h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        else:  # stream
-                            fps, w, h = 30, im0.shape[1], im0.shape[0]
-                            save_path += ".mp4"
-                        vid_writer[i] = cv2.VideoWriter(
-                            save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h)
-                        )
-                    vid_writer[i].write(im0)
+                if not video_writer:
+                    video_writer = cv2.VideoWriter(
+                        save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H)
+                    )
+                video_writer.write(im0)
+
+
+    print("releasing vid writer")
+    video_writer.release()
+    
+    # for scooter_id in writers:
+    #     print(f"releasing scooter {scooter_id} video writer")
+    #     writers[scooter_id].release()
+
+    # write bbox sizes to csv file
+    # with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
+    #     csv_writer = csv.writer(csv_file, delimiter=",")
+    #     csv_writer.writerow(["scooter_id", "w", "h"])
+    #     for scooter_id in bbox_sizes:
+    #         for (w, h) in bbox_sizes[scooter_id]:
+    #             csv_writer.writerow([scooter_id, w, h])
 
     # Print results
     t = tuple(x / seen * 1e3 for x in dt)  # speeds per image
@@ -445,6 +505,9 @@ def parse_opt():
     )
     parser.add_argument(
         "--show-overlay", action="store_true", help="show debug overlay"
+    )
+    parser.add_argument(
+        "--save-crop-vids", action="store_true", help="show debug overlay"
     )
     parser.add_argument(
         "--cycle-times-save-path",

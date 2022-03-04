@@ -29,7 +29,7 @@ from tqdm import tqdm
 from utils.augmentations import Albumentations, augment_hsv, copy_paste, letterbox, mixup, random_perspective
 from utils.general import (LOGGER, NUM_THREADS, check_dataset, check_requirements, check_yaml, clean_str,
                            segments2boxes, xyn2xy, xywh2xyxy, xywhn2xyxy, xyxy2xywhn)
-from utils.torch_utils import torch_distributed_zero_first
+from utils.torch_utils import time_sync, torch_distributed_zero_first
 
 # Parameters
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -223,7 +223,10 @@ class LoadImages:
         # rotate img
         # im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
         # resize img
+        t1 = time_sync()
         img0 = cv2.resize(img0, (540, 960))
+        t2 = time_sync()
+        print(f'Time to resize image: {t2 - t1:.3}s')
         # img0 = cv2.resize(img0, (360, 640))
         
         # Padded resize

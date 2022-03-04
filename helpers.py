@@ -313,7 +313,7 @@ def plot_bbox_sizes(file):
     print(data["scooter_id"].unique())
 
     for id in data["scooter_id"].unique():
-        if id in [1, 8, 16]:
+        if id in range(50):
             scooter_data = data[data["scooter_id"] == id]
             plt.scatter(
                 scooter_data["w"],
@@ -322,8 +322,18 @@ def plot_bbox_sizes(file):
                 s=[2] * scooter_data.shape[0],
             )
 
+    
+    ys = np.arange(0, 900, 10)
+    xs = [400] * ys.shape[0]
+    plt.plot(xs, ys, linestyle="dashed", color="green")
+    
+    xs = np.arange(0, 900, 10)
+    ys = [800] * xs.shape[0]
+    plt.plot(xs, ys, linestyle="dashed", color="green")
+    
     plt.xticks(np.arange(0, 1000, 100))
     plt.yticks(np.arange(0, 1000, 100))
+    
     plt.legend()
     plt.show()
 
