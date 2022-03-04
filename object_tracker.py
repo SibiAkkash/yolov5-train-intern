@@ -1,6 +1,4 @@
 import argparse
-from collections import defaultdict
-import csv
 from itertools import cycle
 from logging import Logger
 from multiprocessing.spawn import prepare
@@ -10,8 +8,6 @@ from pathlib import Path
 
 import cv2
 import deep_sort
-from deep_sort.track import TrackState
-from helpers import draw_text_with_box
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -162,9 +158,6 @@ def run(
     print(f"{fps = }")
 
     vid_path, vid_writer = [None] * bs, [None] * bs
-    video_writer = None
-    writers = defaultdict(None)
-    bbox_sizes = defaultdict(list)
 
     # Run inference
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
@@ -290,9 +283,6 @@ def run(
             if len(tracker.tracks):
                 print("[Tracks]", len(tracker.tracks))
 
-            H, W, _ = im0.shape
-            EXIT_LINE = 700
-
             for track in tracker.tracks:
                 xyxy = track.to_tlbr()
                 bbox = xyxy
@@ -334,11 +324,9 @@ def run(
                             im0,
                             (int(cx), int(cy)),
                             2,
-                            # color=colors(int(class_num), True),
-                            color=(0, 173, 255),
+                            color=colors(int(class_num), True),
                             thickness=-1,
                         )
-
 
                 if save_crop_vids:
                     x1, y1, x2, y2 = bbox
@@ -373,13 +361,12 @@ def run(
         
             # Stream results
             im0 = annotator.result()
-            cv2.line(im0, (0, EXIT_LINE), (W, EXIT_LINE), (0, 255, 0), 2)
 
             # show output
             if view_img:
                 cv2.imshow(str(p), im0)
 
-                if cv2.waitKey(1) == ord("q"):
+                if cv2.waitKey(5) == ord("q"):
                     print("trying to quit")
                     print("releasing vid writer")
                     vid_cap.release()
