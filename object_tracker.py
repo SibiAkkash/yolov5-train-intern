@@ -133,7 +133,7 @@ def run(
 
     # init clip model
     model_filename = "ViT-B/16"  # all model names in clip/clip.py
-    clip_model, clip_transform = clip.load(name=model_filename, device=device, jit=True)
+    clip_model, clip_transform = clip.load(name=model_filename, device=device)
     clip_model.eval()
 
     img_encoder = gdet.create_box_encoder(
