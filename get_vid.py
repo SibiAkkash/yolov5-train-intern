@@ -94,18 +94,18 @@ def collect_images(save_path):
     for _, _, img0, _, _ in stream:
         cv2.imshow("s", cv2.resize(img0[0], (540, 960)))
 
-        key = cv2.waitKey(1)
+        key = cv2.waitKey(5)
         if key == ord('c'):
             cnt += 1
             cv2.imwrite(f"{save_path}/{cnt:04d}.jpg", img0[0])
-            print('captured image', img0[0].shape)
+            print(cnt, ' captured image', img0[0].shape)
         if key == ord('q'):
             break
 
     cv2.destroyAllWindows()
 
 
-collect_images(save_path="images")
+collect_images(save_path="images_2")
 
 # record_stream(duration_min=0.1, save_path="videos/test_2.mp4", flip_path="videos/test_2_flip.mp4")
 # flip_video("videos/test_2.mp4", "videos/test_2_flip.mp4")
