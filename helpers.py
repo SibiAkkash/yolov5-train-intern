@@ -1,3 +1,4 @@
+import json
 import cv2
 from typing import Tuple
 
@@ -13,6 +14,9 @@ import pandas as pd
 from pprint import pprint
 
 from moviepy.editor import VideoFileClip
+from pathlib import Path
+import csv
+import os
 
 def get_time_elapsed_ms(start_frame: int, end_frame: int, fps: float):
     return 1000.0 * (end_frame - start_frame) / fps
@@ -349,9 +353,42 @@ def get_vid_clip(path):
     orig_video.close()
     
     
+#! csv file format: video_path,start_time,end_time,action_id
+    
+def get_action_clips(data_root=Path("."), save_root=Path("../action_clips")):
+    csv_file_path = "crop_videos/data.csv"
+    data = pd.read_csv(csv_file_path)
+    action_ids = data.iloc[:, -1].unique()
+    
+    with open("crop_videos/classnames.txt") as f:
+        classnames = list(map(lambda c: c.strip(), f.readlines()))
+        
+    # print(action_ids) 
+    # print(classnames)
+    
+    for action_id in action_ids:
+        os.makedirs(save_root / classnames[action_id], exist_ok=True)
+    
+    num_actions = [0] * len(classnames)
+    
+    with open(csv_file_path, 'r') as csv_file:
+        csv_reader = csv.reader(csv_file)    
+        for row in csv_reader:
+            vid_path, start, end, action_id = row
+            action_id = int(action_id)
+            num_actions[action_id] += 1
+            
+            clip = VideoFileClip(str(data_root / vid_path)).subclip(start, end)
+            clip_path = save_root / classnames[action_id] / f"{num_actions[action_id]}.mp4"
+            clip.write_videofile(str(clip_path))
+            
+            clip.close()
+        
+    
     
 if __name__ == "__main__":
     # plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')
     # plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
-    get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
+    # get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
+    get_action_clips()
 

@@ -1,0 +1,6 @@
+0 arrest_nut_and_dust_cup
+1 torque_tool_1_tight
+2 electric_coupler
+3 qr_code_scanning
+4 lock_nut_and_washer
+5 torque_tool_2_tight
