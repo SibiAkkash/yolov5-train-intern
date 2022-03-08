@@ -340,7 +340,7 @@ def run(
 
                     # write cropped image to respective video file
                     # TODO pad cropped image to get have uniform dimension
-                    y_new = max(0, y1 - 100)
+                    y_new = max(0, y1 - 50)
                     x_new = min(W, x2 + 50)
 
                     crop = im0[y_new:y2, x1:x_new]
