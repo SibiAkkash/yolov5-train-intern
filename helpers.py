@@ -353,27 +353,35 @@ def get_vid_clip(path):
     orig_video.close()
     
     
-#! csv file format: video_path,start_time,end_time,action_id
     
 def get_action_clips(data_root=Path("."), save_root=Path("../action_clips")):
     csv_file_path = "crop_videos/data.csv"
     data = pd.read_csv(csv_file_path)
-    action_ids = data.iloc[:, -1].unique()
+    print(data)
+    action_ids = data["action_id"].unique()
     
     with open("crop_videos/classnames.txt") as f:
         classnames = list(map(lambda c: c.strip(), f.readlines()))
         
-    # print(action_ids) 
-    # print(classnames)
+    print(action_ids) 
+    print(classnames)
     
     for action_id in action_ids:
+        print(f'creating directory {classnames[action_id]}')
         os.makedirs(save_root / classnames[action_id], exist_ok=True)
     
     num_actions = [0] * len(classnames)
     
     with open(csv_file_path, 'r') as csv_file:
         csv_reader = csv.reader(csv_file)    
+        next(csv_reader) # skip header
+        
         for row in csv_reader:
+            if not row:
+                print('empty row')
+                continue
+            
+            print(row)
             vid_path, start, end, action_id = row
             action_id = int(action_id)
             num_actions[action_id] += 1
