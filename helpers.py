@@ -1,4 +1,3 @@
-from email.mime import base
 import cv2
 from typing import Tuple
 
@@ -13,6 +12,7 @@ import numpy as np
 import pandas as pd
 from pprint import pprint
 
+from moviepy.editor import VideoFileClip
 
 def get_time_elapsed_ms(start_frame: int, end_frame: int, fps: float):
     return 1000.0 * (end_frame - start_frame) / fps
@@ -338,7 +338,20 @@ def plot_bbox_sizes(file):
     plt.show()
 
 
+def get_vid_clip(path):
+    start = 10.56
+    end = 14.28
+    orig_video = VideoFileClip(path)
+    clip = orig_video.subclip(start, end)
+    clip.write_videofile("/home/sibi/Downloads/cycle_videos/rec_3_clip.mp4")
+    
+    clip.close()
+    orig_video.close()
+    
+    
+    
 if __name__ == "__main__":
     # plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')
+    # plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
+    get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
 
-    plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
