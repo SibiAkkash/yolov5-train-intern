@@ -18,6 +18,7 @@ from pathlib import Path
 import csv
 import os
 
+
 def get_time_elapsed_ms(start_frame: int, end_frame: int, fps: float):
     return 1000.0 * (end_frame - start_frame) / fps
 
@@ -326,18 +327,17 @@ def plot_bbox_sizes(file):
                 s=[2] * scooter_data.shape[0],
             )
 
-    
     ys = np.arange(0, 900, 10)
     xs = [400] * ys.shape[0]
     plt.plot(xs, ys, linestyle="dashed", color="green")
-    
+
     xs = np.arange(0, 900, 10)
     ys = [800] * xs.shape[0]
     plt.plot(xs, ys, linestyle="dashed", color="green")
-    
+
     plt.xticks(np.arange(0, 1000, 100))
     plt.yticks(np.arange(0, 1000, 100))
-    
+
     plt.legend()
     plt.show()
 
@@ -348,55 +348,117 @@ def get_vid_clip(path):
     orig_video = VideoFileClip(path)
     clip = orig_video.subclip(start, end)
     clip.write_videofile("/home/sibi/Downloads/cycle_videos/rec_3_clip.mp4")
-    
+
     clip.close()
     orig_video.close()
-    
-    
-    
+
+
 def get_action_clips(data_root=Path("."), save_root=Path("../action_clips")):
     csv_file_path = "crop_videos/data.csv"
     data = pd.read_csv(csv_file_path)
     print(data)
     action_ids = data["action_id"].unique()
-    
+
     with open("crop_videos/classnames.txt") as f:
         classnames = list(map(lambda c: c.strip(), f.readlines()))
-        
-    print(action_ids) 
+
+    print(action_ids)
     print(classnames)
-    
+
     for action_id in action_ids:
-        print(f'creating directory {classnames[action_id]}')
+        print(f"creating directory {classnames[action_id]}")
         os.makedirs(save_root / classnames[action_id], exist_ok=True)
-    
+
     num_actions = [0] * len(classnames)
-    
-    with open(csv_file_path, 'r') as csv_file:
-        csv_reader = csv.reader(csv_file)    
-        next(csv_reader) # skip header
-        
+
+    with open(csv_file_path, "r") as csv_file:
+        csv_reader = csv.reader(csv_file)
+        next(csv_reader)  # skip header
+
         for row in csv_reader:
             if not row:
-                print('empty row')
+                print("empty row")
                 continue
-            
+
             print(row)
             vid_path, start, end, action_id = row
             action_id = int(action_id)
             num_actions[action_id] += 1
-            
+
             clip = VideoFileClip(str(data_root / vid_path)).subclip(start, end)
-            clip_path = save_root / classnames[action_id] / f"{num_actions[action_id]}.mp4"
+            clip_path = (
+                save_root / classnames[action_id] / f"{num_actions[action_id]}.mp4"
+            )
             clip.write_videofile(str(clip_path))
-            
+
             clip.close()
-        
-    
-    
+
+
+def convert_to_millis(s):
+    hh, mm, ss_ms = s.split(":")
+    ss, ms = ss_ms.split(".")
+    hh, mm, ss, ms = int(hh), int(mm), int(ss), int(ms)
+    total_ms = ms + (ss * 1000) + (mm * 60 * 1000) + (hh * 24 * 60 * 1000)
+    return total_ms
+
+
+def plot_action_durations():
+    import matplotlib.transforms as mtransforms
+
+    data = pd.read_csv("crop_videos/data.csv")
+
+    with open("crop_videos/classnames.txt") as f:
+        classnames = list(map(lambda c: c.strip(), f.readlines()))
+
+    fig, axs = plt.subplot_mosaic(
+        """
+        0011
+        0011
+        2233
+        2233
+        4455
+        4455
+        """,
+        constrained_layout=True,
+        figsize=(200, 100)
+    )
+
+    for action_id in data["action_id"].unique():
+        actions = data[data["action_id"] == action_id]
+
+        starts = actions["start_time"].to_numpy()
+        ends = actions["end_time"].to_numpy()
+
+        starts_ms = np.array(list(map(lambda t: convert_to_millis(t), starts)))
+        ends_ms = np.array(list(map(lambda t: convert_to_millis(t), ends)))
+        diff = (ends_ms - starts_ms) / 1000
+
+        for st, et, dt in zip(starts, ends, diff):
+            if dt < 0:
+                print(st, et, dt)
+
+        axs[str(action_id)].plot(np.arange(0, len(starts), 1), diff)
+
+        # median
+        # median_diff = np.median(diff)
+        # axs[str(action_id)].plot(
+        #     np.arange(0, len(starts), 1),
+        #     [median_diff] * len(starts),
+        #     linestyle="dashed",
+        #     color="green",
+        # )
+
+        axs[str(action_id)].set_xticks(np.arange(0, 50, 5))
+        axs[str(action_id)].set_yticks(np.arange(0, 15, 1))
+
+        axs[str(action_id)].set_title(classnames[action_id])
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')
     # plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
     # get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
-    get_action_clips()
-
+    # get_action_clips()
+    plot_action_durations()
