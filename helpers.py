@@ -1,6 +1,6 @@
 import json
 import cv2
-from typing import Tuple
+from typing import List, Tuple
 
 import secrets
 import string
@@ -17,6 +17,7 @@ from moviepy.editor import VideoFileClip
 from pathlib import Path
 import csv
 import os
+import random
 
 
 def get_time_elapsed_ms(start_frame: int, end_frame: int, fps: float):
@@ -380,14 +381,13 @@ def get_action_clips(data_root=Path("."), save_root=Path("../action_clips")):
                 print("empty row")
                 continue
 
-            print(row)
             vid_path, start, end, action_id = row
             action_id = int(action_id)
             num_actions[action_id] += 1
 
             clip = VideoFileClip(str(data_root / vid_path)).subclip(start, end)
             clip_path = (
-                save_root / classnames[action_id] / f"{num_actions[action_id]}.mp4"
+                save_root / classnames[action_id] / f"{num_actions[action_id]:03d}.mp4"
             )
             clip.write_videofile(str(clip_path))
 
@@ -455,10 +455,42 @@ def plot_action_durations():
 
     plt.show()
 
+def write_to_csv(csv_path: str, filenames: List[str], label: int, video_path_prefix: str):
+    with open(csv_path, 'a') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        for filename in filenames:
+            file_path = os.path.join(video_path_prefix, filename)
+            csv_writer.writerow([file_path, label])
+
+def create_train_test_val():
+    random.seed(1234)
+    ratio = [0.85, 0.10, 0.05]
+    
+    for action_id, action in enumerate(os.scandir("../action_clips")):
+        video_files = os.listdir(action.path)
+        random.shuffle(video_files)
+    
+        num = len(video_files)
+        
+        train_idx = int(ratio[0] * num)
+        val_idx = train_idx + int(ratio[1] * num)
+        
+        train_files = sorted(video_files[:train_idx])
+        val_files = sorted(video_files[train_idx:val_idx])
+        test_files = sorted(video_files[val_idx:])
+
+        print(f'{action.name}\t\t train: {len(train_files)}, val: {len(val_files)}, test: {len(test_files)}')
+
+        write_to_csv('crop_videos/train.csv', train_files, label=action_id, video_path_prefix=action.path)        
+        write_to_csv('crop_videos/val.csv', val_files, label=action_id, video_path_prefix=action.path)        
+        write_to_csv('crop_videos/test.csv', test_files, label=action_id, video_path_prefix=action.path)        
+
+    print('Done')        
 
 if __name__ == "__main__":
     # plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')
     # plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
     # get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
     # get_action_clips()
-    plot_action_durations()
+    # plot_action_durations()
+    create_train_test_val()
