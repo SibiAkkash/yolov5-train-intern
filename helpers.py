@@ -11,7 +11,6 @@ from matplotlib.patches import Patch
 
 import numpy as np
 import pandas as pd
-from pprint import pprint
 
 from moviepy.editor import VideoFileClip
 from pathlib import Path
@@ -30,19 +29,6 @@ def get_time_from_frame(frame_num: int, fps: float):
 
 def get_random_string(length: int = 10, alphabet=string.ascii_letters + string.digits):
     return "".join([secrets.choice(alphabet) for _ in range(length)])
-
-
-# image
-# start_point: (X coordinate value, Y coordinate value).
-# end_point:(X coordinate value, Y coordinate value).
-# color
-# thickness
-def draw_line(img, start_pt, end_pt, color, thickness):
-    pass
-
-
-def is_bbox_inside_line(x1, y1, x2, y2, line_y: int) -> bool:
-    return y1 >= line_y
 
 
 def draw_text_with_box(
@@ -385,7 +371,11 @@ def get_action_clips(data_root=Path("."), save_root=Path("../action_clips")):
             action_id = int(action_id)
             num_actions[action_id] += 1
 
-            clip = VideoFileClip(str(data_root / vid_path)).subclip(start, end)
+            clip = (
+                VideoFileClip(str(data_root / vid_path))
+                .subclip(start, end)
+                .resize(width=256)
+            )
             clip_path = (
                 save_root / classnames[action_id] / f"{num_actions[action_id]:03d}.mp4"
             )
@@ -457,22 +447,28 @@ def plot_action_durations():
     plt.show()
 
 
-def write_to_csv(
-    csv_path: str, filenames: List[str], label: int, video_path_prefix: str
+def write_action_to_csv(
+    csv_path: str, filenames: List[str], label: int, video_path_prefix: str, delim: str = ","
 ):
+    """
+    Populate csv file with filenames and labels
+    Each line is of format file_name <delim> label_id
+
+    """
     with open(csv_path, "a") as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter=" ")
+        csv_writer = csv.writer(csv_file, delimiter=delim)
         for filename in filenames:
             file_path = os.path.join(video_path_prefix, filename)
             csv_writer.writerow([file_path, label])
 
 
-def create_train_test_val(videos_root="../action_clips", ratio=[0.8, 0.1, 0.1]):
+def create_train_test_val_split(videos_root="../action_clips", ratio=[0.8, 0.1, 0.1]):
     random.seed(1234)
-    classes_path = os.path.join(videos_root, "classnames.txt")
 
-    with open(classes_path) as f:
+    with open(os.path.join(videos_root, "classnames.txt")) as f:
         classnames = list(map(lambda c: c.strip(), f.readlines()))
+
+    total = [0, 0, 0]
 
     for action_id, action in enumerate(classnames):
         video_files = os.listdir(os.path.join(videos_root, action))
@@ -491,33 +487,40 @@ def create_train_test_val(videos_root="../action_clips", ratio=[0.8, 0.1, 0.1]):
             f"{action}\t\t train: {len(train_files)}, val: {len(val_files)}, test: {len(test_files)}"
         )
 
-        write_to_csv(
-            csv_path="../action_clips/train.csv",
+        total[0] += len(train_files)
+        total[1] += len(val_files)
+        total[2] += len(test_files)
+
+        write_action_to_csv(
+            csv_path=os.path.join(videos_root, "train.csv"),
             filenames=train_files,
             label=action_id,
             video_path_prefix=action,
         )
-        write_to_csv(
-            csv_path="../action_clips/val.csv",
+        write_action_to_csv(
+            csv_path=os.path.join(videos_root, "val.csv"),
             filenames=val_files,
             label=action_id,
             video_path_prefix=action,
         )
-        write_to_csv(
-            csv_path="../action_clips/test.csv",
+        write_action_to_csv(
+            csv_path=os.path.join(videos_root, "test.csv"),
             filenames=test_files,
             label=action_id,
             video_path_prefix=action,
         )
 
     print("Done")
+    print(f"Num videos\t train: {total[0]}, val: {total[1]}, test: {total[2]}")
 
 
 if __name__ == "__main__":
     # plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')
     # plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
     # get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
-    # get_action_clips()
-    plot_action_durations()
-    # create_train_test_val(videos_root="../action_clips", ratio=[0.85, 0.10, 0.05])
-    # pass
+    # get_action_clips(save_root=Path("../action_clips_resized"))
+    # plot_action_durations()
+
+    create_train_test_val_split(
+        videos_root="../action_clips_resized", ratio=[0.85, 0.10, 0.05]
+    )
