@@ -1,6 +1,6 @@
 import json
 import cv2
-from typing import Tuple
+from typing import List, Tuple
 
 import secrets
 import string
@@ -11,12 +11,13 @@ from matplotlib.patches import Patch
 
 import numpy as np
 import pandas as pd
-from pprint import pprint
 
 from moviepy.editor import VideoFileClip
 from pathlib import Path
 import csv
 import os
+import random
+
 
 def get_time_elapsed_ms(start_frame: int, end_frame: int, fps: float):
     return 1000.0 * (end_frame - start_frame) / fps
@@ -28,19 +29,6 @@ def get_time_from_frame(frame_num: int, fps: float):
 
 def get_random_string(length: int = 10, alphabet=string.ascii_letters + string.digits):
     return "".join([secrets.choice(alphabet) for _ in range(length)])
-
-
-# image
-# start_point: (X coordinate value, Y coordinate value).
-# end_point:(X coordinate value, Y coordinate value).
-# color
-# thickness
-def draw_line(img, start_pt, end_pt, color, thickness):
-    pass
-
-
-def is_bbox_inside_line(x1, y1, x2, y2, line_y: int) -> bool:
-    return y1 >= line_y
 
 
 def draw_text_with_box(
@@ -326,18 +314,17 @@ def plot_bbox_sizes(file):
                 s=[2] * scooter_data.shape[0],
             )
 
-    
     ys = np.arange(0, 900, 10)
     xs = [400] * ys.shape[0]
     plt.plot(xs, ys, linestyle="dashed", color="green")
-    
+
     xs = np.arange(0, 900, 10)
     ys = [800] * xs.shape[0]
     plt.plot(xs, ys, linestyle="dashed", color="green")
-    
+
     plt.xticks(np.arange(0, 1000, 100))
     plt.yticks(np.arange(0, 1000, 100))
-    
+
     plt.legend()
     plt.show()
 
@@ -348,55 +335,192 @@ def get_vid_clip(path):
     orig_video = VideoFileClip(path)
     clip = orig_video.subclip(start, end)
     clip.write_videofile("/home/sibi/Downloads/cycle_videos/rec_3_clip.mp4")
-    
+
     clip.close()
     orig_video.close()
-    
-    
-    
+
+
 def get_action_clips(data_root=Path("."), save_root=Path("../action_clips")):
     csv_file_path = "crop_videos/data.csv"
     data = pd.read_csv(csv_file_path)
     print(data)
     action_ids = data["action_id"].unique()
-    
-    with open("crop_videos/classnames.txt") as f:
+
+    with open("../action_clips/classnames.txt") as f:
         classnames = list(map(lambda c: c.strip(), f.readlines()))
-        
-    print(action_ids) 
+
+    print(action_ids)
     print(classnames)
-    
+
     for action_id in action_ids:
-        print(f'creating directory {classnames[action_id]}')
+        print(f"creating directory {classnames[action_id]}")
         os.makedirs(save_root / classnames[action_id], exist_ok=True)
-    
+
     num_actions = [0] * len(classnames)
-    
-    with open(csv_file_path, 'r') as csv_file:
-        csv_reader = csv.reader(csv_file)    
-        next(csv_reader) # skip header
-        
+
+    with open(csv_file_path, "r") as csv_file:
+        csv_reader = csv.reader(csv_file)
+        next(csv_reader)  # skip header
+
         for row in csv_reader:
             if not row:
-                print('empty row')
+                print("empty row")
                 continue
-            
-            print(row)
+
             vid_path, start, end, action_id = row
             action_id = int(action_id)
             num_actions[action_id] += 1
-            
-            clip = VideoFileClip(str(data_root / vid_path)).subclip(start, end)
-            clip_path = save_root / classnames[action_id] / f"{num_actions[action_id]}.mp4"
+
+            clip = (
+                VideoFileClip(str(data_root / vid_path))
+                .subclip(start, end)
+                .resize(width=256)
+            )
+            clip_path = (
+                save_root / classnames[action_id] / f"{num_actions[action_id]:03d}.mp4"
+            )
             clip.write_videofile(str(clip_path))
-            
+
             clip.close()
-        
-    
-    
+
+
+def convert_to_millis(s):
+    hh, mm, ss_ms = s.split(":")
+    ss, ms = ss_ms.split(".")
+    hh, mm, ss, ms = int(hh), int(mm), int(ss), int(ms)
+    total_ms = ms + (ss * 1000) + (mm * 60 * 1000) + (hh * 24 * 60 * 1000)
+    return total_ms
+
+
+def plot_action_durations():
+
+    data = pd.read_csv("crop_videos/data.csv")
+
+    with open("../action_clips/classnames.txt") as f:
+        classnames = list(map(lambda c: c.strip(), f.readlines()))
+
+    fig, axs = plt.subplot_mosaic(
+        """
+        0011
+        0011
+        2233
+        2233
+        4455
+        4455
+        """,
+        constrained_layout=True,
+        figsize=(200, 100),
+    )
+
+    for action_id in data["action_id"].unique():
+        actions = data[data["action_id"] == action_id]
+
+        starts = actions["start_time"].to_numpy()
+        ends = actions["end_time"].to_numpy()
+
+        starts_ms = np.array(list(map(lambda t: convert_to_millis(t), starts)))
+        ends_ms = np.array(list(map(lambda t: convert_to_millis(t), ends)))
+        diff = (ends_ms - starts_ms) / 1000
+
+        for st, et, dt in zip(starts, ends, diff):
+            if dt < 0:
+                print(st, et, dt)
+
+        ax = axs[str(action_id)]
+
+        ax.plot(np.arange(0, len(starts), 1), diff)
+        ax.scatter(np.arange(0, len(starts), 1), diff)
+
+        # median
+        # median_diff = np.median(diff)
+        # ax.plot(
+        #     np.arange(0, len(starts), 1),
+        #     [median_diff] * len(starts),
+        #     linestyle="dashed",
+        #     color="green",
+        # )
+
+        ax.set_xticks(np.arange(0, 50, 5))
+        ax.set_yticks(np.arange(0, 15, 1))
+        ax.set_title(classnames[action_id])
+
+    plt.show()
+
+
+def write_action_to_csv(
+    csv_path: str, filenames: List[str], label: int, video_path_prefix: str, delim: str = ","
+):
+    """
+    Populate csv file with filenames and labels
+    Each line is of format file_name <delim> label_id
+
+    """
+    with open(csv_path, "a") as csv_file:
+        csv_writer = csv.writer(csv_file, delimiter=delim)
+        for filename in filenames:
+            file_path = os.path.join(video_path_prefix, filename)
+            csv_writer.writerow([file_path, label])
+
+
+def create_train_test_val_split(videos_root="../action_clips", ratio=[0.8, 0.1, 0.1]):
+    random.seed(1234)
+
+    with open(os.path.join(videos_root, "classnames.txt")) as f:
+        classnames = list(map(lambda c: c.strip(), f.readlines()))
+
+    total = [0, 0, 0]
+
+    for action_id, action in enumerate(classnames):
+        video_files = os.listdir(os.path.join(videos_root, action))
+        random.shuffle(video_files)
+
+        num = len(video_files)
+
+        train_idx = int(ratio[0] * num)
+        val_idx = train_idx + int(ratio[1] * num)
+
+        train_files = sorted(video_files[:train_idx])
+        val_files = sorted(video_files[train_idx:val_idx])
+        test_files = sorted(video_files[val_idx:])
+
+        print(
+            f"{action}\t\t train: {len(train_files)}, val: {len(val_files)}, test: {len(test_files)}"
+        )
+
+        total[0] += len(train_files)
+        total[1] += len(val_files)
+        total[2] += len(test_files)
+
+        write_action_to_csv(
+            csv_path=os.path.join(videos_root, "train.csv"),
+            filenames=train_files,
+            label=action_id,
+            video_path_prefix=action,
+        )
+        write_action_to_csv(
+            csv_path=os.path.join(videos_root, "val.csv"),
+            filenames=val_files,
+            label=action_id,
+            video_path_prefix=action,
+        )
+        write_action_to_csv(
+            csv_path=os.path.join(videos_root, "test.csv"),
+            filenames=test_files,
+            label=action_id,
+            video_path_prefix=action,
+        )
+
+    print("Done")
+    print(f"Num videos\t train: {total[0]}, val: {total[1]}, test: {total[2]}")
+
+
 if __name__ == "__main__":
     # plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')
     # plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
     # get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
-    get_action_clips()
+    # get_action_clips(save_root=Path("../action_clips_resized"))
+    # plot_action_durations()
 
+    create_train_test_val_split(
+        videos_root="../action_clips_resized", ratio=[0.85, 0.10, 0.05]
+    )
