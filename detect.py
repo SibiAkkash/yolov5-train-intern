@@ -169,6 +169,9 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     model.warmup(imgsz=(1, 3, *imgsz), half=half)  # warmup
     dt, seen = [0.0, 0.0, 0.0], 0
 
+    cv2.namedWindow("stream", cv2.WINDOW_GUI_NORMAL)
+    cv2.resizeWindow("stream", 540, 960)
+
     for path, im, im0s, vid_cap, s in dataset:
         t1 = time_sync()
         im = torch.from_numpy(im).to(device)
@@ -331,7 +334,8 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                     cv2.imshow(str(p), stacked)
 
                 else:
-                    cv2.imshow(str(p), im0)
+                    # cv2.imshow(str(p), im0)
+                    cv2.imshow("stream", im0)
 
                 # if cv2.waitKey(5) == ord('q'):
                 #     print('trying to quit')

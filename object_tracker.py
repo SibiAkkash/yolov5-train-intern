@@ -92,6 +92,7 @@ def run(
     nms_max_overlap = 1.0
     max_cosine_distance = 0.4
     nn_budget = None
+    EXIT_LINE = 700
 
     source = str(source)
     save_img = not nosave and not source.endswith(".txt")  # save inference images
@@ -121,9 +122,6 @@ def run(
     )
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
-    # print(model.names)
-    # ['horn', 'speedo', 'exposed_fork', 'torque_tool_hanging', 'torque_tool_inserted', 'ball_bearing_tool', 'QR_code_scanner', 'wheel_with_fender']
-
     # Half
     half &= (
         pt or jit or onnx or engine
@@ -145,7 +143,7 @@ def run(
     )
 
     # initialize tracker
-    tracker = Tracker(metric, max_iou_distance=0.7, max_age=150, n_init=10)
+    tracker = Tracker(metric, max_iou_distance=0.7, max_age=60, n_init=10)
 
     # Dataloader
     if webcam:
@@ -171,6 +169,10 @@ def run(
     video_writer = None
     writers = defaultdict(None)
     bbox_sizes = defaultdict(list)
+
+    cv2.namedWindow("stream", cv2.WINDOW_GUI_NORMAL)
+    cv2.resizeWindow("stream", 540, 960)
+
 
     for path, im, im0s, vid_cap, s in dataset:
 
@@ -226,6 +228,8 @@ def run(
             confs = []
             class_nums = []
 
+            H, W, _ = im0.shape
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
@@ -244,129 +248,123 @@ def run(
                 bboxes = trans_bboxes[:, :4].cpu()  # why indexing again ?
                 confs = det[:, 4].cpu()
                 class_nums = det[:, -1].cpu()
-            else:
-                # print('no detections yet')
-                continue
 
-            LOGGER.info(f"Time for yolo inference. {t3 - t2:.3f}s")
+                LOGGER.info(f"Time for yolo inference. {t3 - t2:.3f}s")
 
-            # encode yolo detections and feed to tracker
-            with torch.no_grad():
-                t4 = time_sync()
-                features = img_encoder(im0, bboxes)
-                t5 = time_sync()
-            dt[3] += t5 - t4
+                # encode yolo detections and feed to tracker
+                with torch.no_grad():
+                    t4 = time_sync()
+                    features = img_encoder(im0, bboxes)
+                    t5 = time_sync()
+                dt[3] += t5 - t4
 
-            LOGGER.info(f"Time for encoding boxes: {t5 - t4:.3}s")
+                LOGGER.info(f"Time for encoding boxes: {t5 - t4:.3}s")
 
-            detections = [
-                Detection(bbox, conf, class_num, feature)
-                for bbox, conf, class_num, feature in zip(
-                    bboxes, confs, class_nums, features
-                )
-            ]
-
-            # run non-maxima suppression
-            boxes = np.array([d.tlwh for d in detections])
-            scores = np.array([d.confidence for d in detections])
-            class_nums = np.array([d.class_num for d in detections])
-
-            t6 = time_sync()
-            # supress overlapping detections
-            indices = preprocessing.non_max_suppression(
-                boxes, class_nums, nms_max_overlap, scores
-            )
-            t7 = time_sync()
-            dt[4] += t7 - t6
-
-            LOGGER.info(f"Time for nms (tracker): {t7 - t6:.3}s")
-
-            detections = [detections[i] for i in indices]
-
-            t8 = time_sync()
-            # call the tracker
-            tracker.predict()
-            tracker.update(detections)
-            t9 = time_sync()
-            dt[5] += t9 - t8
-            LOGGER.info(f"Time for track matching: {t9 - t8:.3}s")
-
-            if len(tracker.tracks):
-                print("[Tracks]", len(tracker.tracks))
-
-            H, W, _ = im0.shape
-            EXIT_LINE = 700
-
-            for track in tracker.tracks:
-                xyxy = track.to_tlbr()
-                bbox = xyxy
-                class_num = track.class_num
-                class_name = names[int(class_num)]
-
-                if not track.is_confirmed() or track.time_since_update > 1:
-                    # print(
-                    #     f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
-                    # )
-                    continue
-
-                bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
-
-                if bbox_center_y >= 700:
-                    track.state = TrackState.Deleted
-                    # print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
-                    if track.track_id in writers:
-                        print(
-                            f"\n\n\nreleasing scooter {track.track_id} video writer\n\n\n"
-                        )
-                        writers[track.track_id].close()  # using VideoGear
-                    continue
-
-                print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
-
-                if save_crop_vids:
-                    x1, y1, x2, y2 = bbox
-                    x1 = int(min(max(x1, 0), W))
-                    x2 = int(min(max(x2, 0), W))
-                    y1 = int(min(max(y1, 0), H))
-                    y2 = int(min(max(y2, 0), H))
-
-                    bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
-
-                    if track.track_id not in writers:
-                        print(f"creating vid writer for scooter {track.track_id}")
-                        video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
-                        print(video_path)
-                        writers[track.track_id] = WriteGear(output_filename=video_path)
-
-                    # write cropped image to respective video file
-                    # TODO pad cropped image to get have uniform dimension
-                    y_new = max(0, y1 - 50)
-                    x_new = min(W, x2 + 50)
-
-                    crop = im0[y_new:y2, x1:x_new]
-                    crop = cv2.resize(crop, (400, 800))
-                    writers[track.track_id].write(crop)
-
-                # annotate image
-                if view_img:
-                    label = f"{class_name} #{track.track_id}"
-
-                    annotator.box_label(
-                        bbox,
-                        label,
-                        color=colors(int(class_num), True),
-                        show_center=True,
+                detections = [
+                    Detection(bbox, conf, class_num, feature)
+                    for bbox, conf, class_num, feature in zip(
+                        bboxes, confs, class_nums, features
                     )
+                ]
 
-                    # plot prev bbox centers
-                    for cx, cy in track.prev_locs:
-                        cv2.circle(
-                            im0,
-                            (int(cx), int(cy)),
-                            2,
+                # run non-maxima suppression
+                boxes = np.array([d.tlwh for d in detections])
+                scores = np.array([d.confidence for d in detections])
+                class_nums = np.array([d.class_num for d in detections])
+
+                t6 = time_sync()
+                # supress overlapping detections
+                indices = preprocessing.non_max_suppression(
+                    boxes, class_nums, nms_max_overlap, scores
+                )
+                t7 = time_sync()
+                dt[4] += t7 - t6
+
+                LOGGER.info(f"Time for nms (tracker): {t7 - t6:.3}s")
+
+                detections = [detections[i] for i in indices]
+
+                t8 = time_sync()
+                # call the tracker
+                tracker.predict()
+                tracker.update(detections)
+                t9 = time_sync()
+                dt[5] += t9 - t8
+                LOGGER.info(f"Time for track matching: {t9 - t8:.3}s")
+
+                if len(tracker.tracks):
+                    print("[Tracks]", len(tracker.tracks))
+
+                for track in tracker.tracks:
+                    xyxy = track.to_tlbr()
+                    bbox = xyxy
+                    class_num = track.class_num
+                    class_name = names[int(class_num)]
+
+                    if not track.is_confirmed() or track.time_since_update > 1:
+                        # print(
+                        #     f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
+                        # )
+                        continue
+
+                    bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
+
+                    if bbox_center_y >= 700:
+                        track.state = TrackState.Deleted
+                        # print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
+                        if track.track_id in writers:
+                            print(
+                                f"\n\n\nreleasing scooter {track.track_id} video writer\n\n\n"
+                            )
+                            writers[track.track_id].close()  # using VideoGear
+                        continue
+
+                    print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
+
+                    if save_crop_vids:
+                        x1, y1, x2, y2 = bbox
+                        x1 = int(min(max(x1, 0), W))
+                        x2 = int(min(max(x2, 0), W))
+                        y1 = int(min(max(y1, 0), H))
+                        y2 = int(min(max(y2, 0), H))
+
+                        bbox_sizes[track.track_id].append((x2 - x1, y2 - y1))
+
+                        if track.track_id not in writers:
+                            print(f"creating vid writer for scooter {track.track_id}")
+                            video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
+                            print(video_path)
+                            writers[track.track_id] = WriteGear(output_filename=video_path)
+
+                        # write cropped image to respective video file
+                        # TODO pad cropped image to get have uniform dimension
+                        y_new = max(0, y1 - 50)
+                        x_new = min(W, x2 + 50)
+
+                        crop = im0[y_new:y2, x1:x_new]
+                        crop = cv2.resize(crop, (400, 800))
+                        writers[track.track_id].write(crop)
+
+                    # annotate image
+                    if view_img:
+                        label = f"{class_name} #{track.track_id}"
+
+                        annotator.box_label(
+                            bbox,
+                            label,
                             color=colors(int(class_num), True),
-                            thickness=-1,
+                            show_center=True,
                         )
+
+                        # plot prev bbox centers
+                        for cx, cy in track.prev_locs:
+                            cv2.circle(
+                                im0,
+                                (int(cx), int(cy)),
+                                2,
+                                color=colors(int(class_num), True),
+                                thickness=-1,
+                            )
 
             # Stream results
             im0 = annotator.result()
@@ -374,8 +372,8 @@ def run(
 
             # show output
             if view_img:
-                cv2.imshow(str(p), im0)
-
+                # stream url: str(p)
+                cv2.imshow("stream", im0)
                 # if cv2.waitKey(5) == ord("q"):
                 #     print("trying to quit")
                 #     print("releasing vid writer")
