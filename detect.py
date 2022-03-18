@@ -336,6 +336,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 else:
                     # cv2.imshow(str(p), im0)
                     cv2.imshow("stream", im0)
+                    cv2.waitKey(1)
 
                 # if cv2.waitKey(5) == ord('q'):
                 #     print('trying to quit')

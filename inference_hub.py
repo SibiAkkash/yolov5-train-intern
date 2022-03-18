@@ -8,14 +8,19 @@ from imutils.video.webcamvideostream import WebcamVideoStream
 from vidgear.gears import CamGear
 
 
-model = torch.hub.load('ultralytics/yolov5', 'yolov5x')
+model = torch.hub.load('.', 'custom', 'weights/scooter-only-yolov5s.pt', source='local')
+model.conf = 0.6
 model.cuda()
 model.eval()
 
 def test_on_stream():
-    cap = WebcamVideoStream(src="http://localhost:8080/stream/video.mjpeg").start()
-    # cap = CamGear(source="http://localhost:8080/stream/video.mjpeg").start()
+    # cap = WebcamVideoStream(src="/home/sibi/Downloads/cycle_videos/rec_3.mp4").start()
+    cap = CamGear(source="/home/sibi/Downloads/cycle_videos/rec_5_cut.mp4").start()
     time.sleep(2)
+
+    window_name = "stream"
+    cv2.namedWindow(window_name, cv2.WINDOW_GUI_NORMAL)
+    cv2.resizeWindow(window_name, 540, 960)
 
     while True:
         img = cap.read()
@@ -24,17 +29,18 @@ def test_on_stream():
             break
         
         preds = model(img, size=640)
-        preds.display(pprint=True, render=True)
+        preds.display(render=True)
         
-        cv2.imshow("stream", img)
+        cv2.imshow(window_name, cv2.resize(img, (540, 960)))
         
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
         
+        
     cv2.destroyAllWindows()
     cap.stop()
-    cap.stream.release()
+    # cap.stream.release()
 
 
 def batch_infer():

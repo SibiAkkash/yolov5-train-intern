@@ -92,7 +92,7 @@ def run(
     nms_max_overlap = 1.0
     max_cosine_distance = 0.4
     nn_budget = None
-    EXIT_LINE = 700
+    EXIT_LINE = 600
 
     source = str(source)
     save_img = not nosave and not source.endswith(".txt")  # save inference images
@@ -143,7 +143,7 @@ def run(
     )
 
     # initialize tracker
-    tracker = Tracker(metric, max_iou_distance=0.7, max_age=60, n_init=10)
+    tracker = Tracker(metric, max_iou_distance=0.7, max_age=50, n_init=10)
 
     # Dataloader
     if webcam:
@@ -170,8 +170,7 @@ def run(
     writers = defaultdict(None)
     bbox_sizes = defaultdict(list)
 
-    cv2.namedWindow("stream", cv2.WINDOW_GUI_NORMAL)
-    cv2.resizeWindow("stream", 540, 960)
+    
 
 
     for path, im, im0s, vid_cap, s in dataset:
@@ -302,21 +301,24 @@ def run(
                     class_name = names[int(class_num)]
 
                     if not track.is_confirmed() or track.time_since_update > 1:
-                        # print(
-                        #     f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
-                        # )
+                        print(
+                            f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
+                        )
                         continue
 
                     bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
 
-                    if bbox_center_y >= 700:
+                    if bbox_center_y >= EXIT_LINE:
                         track.state = TrackState.Deleted
-                        # print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
-                        if track.track_id in writers:
-                            print(
-                                f"\n\n\nreleasing scooter {track.track_id} video writer\n\n\n"
-                            )
-                            writers[track.track_id].close()  # using VideoGear
+                        print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
+                        
+                        if save_crop_vids:
+                            if track.track_id in writers:
+                                print(
+                                    f"\n\n\nreleasing scooter {track.track_id} video writer\n\n\n"
+                                )
+                                writers[track.track_id].close()  # using VideoGear
+                        
                         continue
 
                     print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
@@ -373,7 +375,10 @@ def run(
             # show output
             if view_img:
                 # stream url: str(p)
+                cv2.namedWindow("stream", cv2.WINDOW_GUI_NORMAL)
+                cv2.resizeWindow("stream", 540, 960)
                 cv2.imshow("stream", im0)
+                cv2.waitKey(1)
                 # if cv2.waitKey(5) == ord("q"):
                 #     print("trying to quit")
                 #     print("releasing vid writer")
@@ -389,8 +394,9 @@ def run(
                     )
                 video_writer.write(im0)
 
-    # print("releasing vid writer")
-    # video_writer.release()
+    if save_img:
+        print("releasing vid writer")
+        video_writer.release()
 
     # write bbox sizes to csv file
     # with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
