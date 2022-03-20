@@ -18,8 +18,6 @@ import numpy as np
 
 import clip
 
-from x3d_inference import ActionPredictionManager
-
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -53,6 +51,8 @@ import generate_clip_detections as gdet
 
 from vidgear.gears import CamGear
 from vidgear.gears import WriteGear
+
+from helpers import send_request_action_pred
 
 
 @torch.no_grad()
@@ -93,7 +93,7 @@ def run(
     nms_max_overlap = 1.0
     max_cosine_distance = 0.4
     nn_budget = None
-    EXIT_LINE = 600
+    EXIT_LINE = 400
 
     source = str(source)
     save_img = not nosave and not source.endswith(".txt")  # save inference images
@@ -147,8 +147,6 @@ def run(
     # initialize tracker
     tracker = Tracker(metric, max_iou_distance=0.7, max_age=50, n_init=10)
     
-    actionPredManager = ActionPredictionManager()
-
     # Dataloader
     if webcam:
         view_img = check_imshow()
@@ -250,7 +248,7 @@ def run(
                 confs = det[:, 4].cpu()
                 class_nums = det[:, -1].cpu()
 
-                LOGGER.info(f"Time for yolo inference. {t3 - t2:.3f}s")
+                # LOGGER.info(f"Time for yolo inference. {t3 - t2:.3f}s")
 
                 # encode yolo detections and feed to tracker
                 with torch.no_grad():
@@ -259,7 +257,7 @@ def run(
                     t5 = time_sync()
                 dt[3] += t5 - t4
 
-                LOGGER.info(f"Time for encoding boxes: {t5 - t4:.3}s")
+                # LOGGER.info(f"Time for encoding boxes: {t5 - t4:.3}s")
 
                 detections = [
                     Detection(bbox, conf, class_num, feature)
@@ -281,7 +279,7 @@ def run(
                 t7 = time_sync()
                 dt[4] += t7 - t6
 
-                LOGGER.info(f"Time for nms (tracker): {t7 - t6:.3}s")
+                # LOGGER.info(f"Time for nms (tracker): {t7 - t6:.3}s")
 
                 detections = [detections[i] for i in indices]
 
@@ -291,7 +289,7 @@ def run(
                 tracker.update(detections)
                 t9 = time_sync()
                 dt[5] += t9 - t8
-                LOGGER.info(f"Time for track matching: {t9 - t8:.3}s")
+                # LOGGER.info(f"Time for track matching: {t9 - t8:.3}s")
 
                 # if len(tracker.tracks):
                 #     print("[Tracks]", len(tracker.tracks))
@@ -312,12 +310,9 @@ def run(
 
                     if bbox_center_y >= EXIT_LINE:
                         track.state = TrackState.Deleted
-                        print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
+                        # print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
                         
                         video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
-                        
-                        # enqueue video for action prediction
-                        actionPredManager.put(video_path)
                         
                         if save_crop_vids:
                             if track.track_id in writers:
@@ -326,6 +321,11 @@ def run(
                                 )
                                 writers[track.track_id].close()  # using VideoGear
                         
+                        
+                        if track.track_id in writers:
+                            # enqueue video for action prediction
+                            send_request_action_pred(video_path=str(video_path))
+
                         continue
 
                     # print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
@@ -404,6 +404,10 @@ def run(
     if save_img:
         print("releasing vid writer")
         video_writer.release()
+
+    
+    # IMPORTANT to prevent deadlock
+    actionPredManager.shutdown()
 
     # write bbox sizes to csv file
     # with open("cycle_times/bbox_sizes_scooter_only_model.csv", "w") as csv_file:

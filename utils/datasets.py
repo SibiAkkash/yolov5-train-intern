@@ -223,10 +223,10 @@ class LoadImages:
         # rotate img
         # im = cv2.rotate(im, cv2.ROTATE_90_COUNTERCLOCKWISE)
         # resize img
-        t1 = time_sync()
+        # t1 = time_sync()
         img0 = cv2.resize(img0, (540, 960))
-        t2 = time_sync()
-        print(f'Time to resize image: {t2 - t1:.3}s')
+        # t2 = time_sync()
+        # print(f'Time to resize image: {t2 - t1:.3}s')
         # img0 = cv2.resize(img0, (360, 640))
         
         # Padded resize

@@ -17,6 +17,8 @@ from pathlib import Path
 import csv
 import os
 import random
+import requests
+import json
 
 
 def get_time_elapsed_ms(start_frame: int, end_frame: int, fps: float):
@@ -29,6 +31,19 @@ def get_time_from_frame(frame_num: int, fps: float):
 
 def get_random_string(length: int = 10, alphabet=string.ascii_letters + string.digits):
     return "".join([secrets.choice(alphabet) for _ in range(length)])
+
+def send_request_action_pred(video_path):
+    URL = "http://localhost:9999/api/action_recog"
+    headers = {
+        "Content-Type": "application/json"
+        }
+    data = {
+        "video_path": str(video_path)
+    }
+    
+    response = requests.post(URL, headers=headers, json=json.dumps(data))
+    
+    print(response.status_code, response.text)
 
 
 def draw_text_with_box(
