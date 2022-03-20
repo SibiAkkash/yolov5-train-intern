@@ -1,4 +1,0 @@
-[submodule "SlowFast"]
-	path = SlowFast
-	url = https://github.com/SibiAkkash/SlowFast.git
-	branch = integration

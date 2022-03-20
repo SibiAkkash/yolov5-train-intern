@@ -1,9 +1,9 @@
 import argparse
 from collections import defaultdict
+import csv
 from email.policy import default
 from itertools import cycle
 from logging import Logger
-from multiprocessing.spawn import prepare
 import os
 import sys
 from pathlib import Path
@@ -111,6 +111,7 @@ def run(
 
     # Load model
     device = select_device(device)
+    print(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data)
     stride, names, pt, jit, onnx, engine = (
         model.stride,
@@ -169,8 +170,6 @@ def run(
     video_writer = None
     writers = defaultdict(None)
     bbox_sizes = defaultdict(list)
-
-    
 
 
     for path, im, im0s, vid_cap, s in dataset:
@@ -399,12 +398,12 @@ def run(
         video_writer.release()
 
     # write bbox sizes to csv file
-    # with open("cycle_times/bbox_sizes.csv", "w") as csv_file:
-    #     csv_writer = csv.writer(csv_file, delimiter=",")
-    #     csv_writer.writerow(["scooter_id", "w", "h"])
-    #     for scooter_id in bbox_sizes:
-    #         for (w, h) in bbox_sizes[scooter_id]:
-    #             csv_writer.writerow([scooter_id, w, h])
+    with open("cycle_times/bbox_sizes_scooter_only_model.csv", "w") as csv_file:
+        csv_writer = csv.writer(csv_file, delimiter=",")
+        csv_writer.writerow(["scooter_id", "w", "h"])
+        for scooter_id in bbox_sizes:
+            for (w, h) in bbox_sizes[scooter_id]:
+                csv_writer.writerow([scooter_id, w, h])
 
     # Print results
     t = tuple(x / seen * 1e3 for x in dt)  # speeds per image

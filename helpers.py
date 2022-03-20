@@ -516,11 +516,12 @@ def create_train_test_val_split(videos_root="../action_clips", ratio=[0.8, 0.1, 
 
 if __name__ == "__main__":
     # plot_global_cycles(file='cycle_times/cycle_times_wheel.txt')
-    # plot_bbox_sizes(file="cycle_times/bbox_sizes.csv")
+    # plot_bbox_sizes(file="cycle_times/bbox_sizes_scooter_only_model.csv")
     # get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
     # get_action_clips(save_root=Path("../action_clips_resized"))
     # plot_action_durations()
 
-    create_train_test_val_split(
-        videos_root="../action_clips_resized", ratio=[0.85, 0.10, 0.05]
-    )
+    # create_train_test_val_split(
+    #     videos_root="../action_clips_resized", ratio=[0.85, 0.10, 0.05]
+    # )
+    pass
