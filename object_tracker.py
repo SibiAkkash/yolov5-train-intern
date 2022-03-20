@@ -18,6 +18,7 @@ import numpy as np
 
 import clip
 
+from x3d_inference import ActionPredictionManager
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -111,7 +112,7 @@ def run(
 
     # Load model
     device = select_device(device)
-    print(device)
+    # print(device)
     model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data)
     stride, names, pt, jit, onnx, engine = (
         model.stride,
@@ -145,6 +146,8 @@ def run(
 
     # initialize tracker
     tracker = Tracker(metric, max_iou_distance=0.7, max_age=50, n_init=10)
+    
+    actionPredManager = ActionPredictionManager()
 
     # Dataloader
     if webcam:
@@ -160,7 +163,7 @@ def run(
         fps = dataset.cap.get(cv2.CAP_PROP_FPS)
         stream = False
 
-    print(f"{fps = }")
+    # print(f"{fps = }")
 
     vid_path, vid_writer = [None] * bs, [None] * bs
 
@@ -290,8 +293,8 @@ def run(
                 dt[5] += t9 - t8
                 LOGGER.info(f"Time for track matching: {t9 - t8:.3}s")
 
-                if len(tracker.tracks):
-                    print("[Tracks]", len(tracker.tracks))
+                # if len(tracker.tracks):
+                #     print("[Tracks]", len(tracker.tracks))
 
                 for track in tracker.tracks:
                     xyxy = track.to_tlbr()
@@ -300,9 +303,9 @@ def run(
                     class_name = names[int(class_num)]
 
                     if not track.is_confirmed() or track.time_since_update > 1:
-                        print(
-                            f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
-                        )
+                        # print(
+                        #     f"NOT CONFIRMED\tTracker ID: {str(track.track_id)}, Class: {class_name}"
+                        # )
                         continue
 
                     bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
@@ -310,6 +313,11 @@ def run(
                     if bbox_center_y >= EXIT_LINE:
                         track.state = TrackState.Deleted
                         print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
+                        
+                        video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
+                        
+                        # enqueue video for action prediction
+                        actionPredManager.put(video_path)
                         
                         if save_crop_vids:
                             if track.track_id in writers:
@@ -320,7 +328,7 @@ def run(
                         
                         continue
 
-                    print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
+                    # print(f"Tracker ID: {str(track.track_id)}, Class: {class_name}")
 
                     if save_crop_vids:
                         x1, y1, x2, y2 = bbox
@@ -398,12 +406,12 @@ def run(
         video_writer.release()
 
     # write bbox sizes to csv file
-    with open("cycle_times/bbox_sizes_scooter_only_model.csv", "w") as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter=",")
-        csv_writer.writerow(["scooter_id", "w", "h"])
-        for scooter_id in bbox_sizes:
-            for (w, h) in bbox_sizes[scooter_id]:
-                csv_writer.writerow([scooter_id, w, h])
+    # with open("cycle_times/bbox_sizes_scooter_only_model.csv", "w") as csv_file:
+    #     csv_writer = csv.writer(csv_file, delimiter=",")
+    #     csv_writer.writerow(["scooter_id", "w", "h"])
+    #     for scooter_id in bbox_sizes:
+    #         for (w, h) in bbox_sizes[scooter_id]:
+    #             csv_writer.writerow([scooter_id, w, h])
 
     # Print results
     t = tuple(x / seen * 1e3 for x in dt)  # speeds per image
