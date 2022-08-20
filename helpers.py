@@ -33,7 +33,7 @@ def get_random_string(length: int = 10, alphabet=string.ascii_letters + string.d
     return "".join([secrets.choice(alphabet) for _ in range(length)])
 
 def send_request_action_pred(video_path):
-    URL = "http://localhost:9999/api/action_recog"
+    URL = "http://localhost:9998/api/action_recog"
     headers = {
         "Content-Type": "application/json"
         }
@@ -289,7 +289,7 @@ def plot_global_cycles(file):
     cycles = range(0, len(times))
     color = "#1f7ef280"
 
-    # ax.bar(cycles, times, color=color)
+    ax.bar(cycles, times, color=color)
     # ax.plot(cycles, times, color=color)
     ax.scatter(cycles, times)
 
@@ -315,7 +315,7 @@ def plot_global_cycles(file):
 
 
 def plot_bbox_sizes(file):
-
+    
     data = pd.read_csv(file)
     print(data["scooter_id"].unique())
 
@@ -411,7 +411,7 @@ def plot_action_durations():
 
     data = pd.read_csv("crop_videos/data.csv")
 
-    with open("../action_clips/classnames.txt") as f:
+    with open("../datasets/action_clips/classnames.txt") as f:
         classnames = list(map(lambda c: c.strip(), f.readlines()))
 
     fig, axs = plt.subplot_mosaic(
@@ -447,13 +447,13 @@ def plot_action_durations():
         ax.scatter(np.arange(0, len(starts), 1), diff)
 
         # median
-        # median_diff = np.median(diff)
-        # ax.plot(
-        #     np.arange(0, len(starts), 1),
-        #     [median_diff] * len(starts),
-        #     linestyle="dashed",
-        #     color="green",
-        # )
+        median_diff = np.median(diff)
+        ax.plot(
+            np.arange(0, len(starts), 1),
+            [median_diff] * len(starts),
+            linestyle="dashed",
+            color="green",
+        )
 
         ax.set_xticks(np.arange(0, 50, 5))
         ax.set_yticks(np.arange(0, 15, 1))
@@ -534,9 +534,8 @@ if __name__ == "__main__":
     # plot_bbox_sizes(file="cycle_times/bbox_sizes_scooter_only_model.csv")
     # get_vid_clip("/home/sibi/Downloads/cycle_videos/rec_3.mp4")
     # get_action_clips(save_root=Path("../action_clips_resized"))
-    # plot_action_durations()
+    plot_action_durations()
 
     # create_train_test_val_split(
     #     videos_root="../action_clips_resized", ratio=[0.85, 0.10, 0.05]
     # )
-    pass

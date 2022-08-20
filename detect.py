@@ -135,7 +135,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     else:
         dataset = LoadImages(source, img_size=imgsz, stride=stride, auto=pt)
         bs = 1  # batch_size
-        fps = dataset.cap.get(cv2.CAP_PROP_FPS)
+        # fps = dataset.cap.get(cv2.CAP_PROP_FPS)
         stream = False
 
     # print(f'{fps = }')
@@ -148,19 +148,6 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
     # EXIT_LINE_Y_HORN = 550
     ENTRY_LINE_Y = 120
     EXIT_LINE_Y_WHEEL = 710
-
-
-    # inspector = VisualInspector(
-    #     start_marker_object_id=names.index('speedo'),vid_writer[i].release()
-    #     end_marker_object_id=names.index('wheel_with_fender'),
-    #     start_marker_check_top=True,
-    #     end_marker_check_top=True,
-    #     marker_names=names,
-    #     entry_line_y=ENTRY_LINE_Y,
-    #     exit_line_y=EXIT_LINE_Y_WHEEL,
-    #     stream_fps=fps,
-    #     cycle_times_save_path=cycle_times_save_path
-    # )
 
     # to draw plots
     fig, ax = plt.subplots(2, 1, figsize=(16, 12))

@@ -1,14 +1,7 @@
 import cv2
-import sys
 import time
-import numpy as np
 from utils.datasets import LoadStreams
-import threading as th
 import os
-
-
-# To view logs  : export OPENCV_LOG_LEVEL=DEBUG; export OPENCVV_VIDEOIO_DEBUG=1
-# To run        : python get_vid.py
 
 
 HOST = '10.131.162.50'
@@ -105,7 +98,8 @@ def collect_images(save_path):
     cv2.destroyAllWindows()
 
 
-collect_images(save_path="images_2")
+if __name__ == "__main__":
+    collect_images(save_path="images_2")
 
 # record_stream(duration_min=0.1, save_path="videos/test_2.mp4", flip_path="videos/test_2_flip.mp4")
 # flip_video("videos/test_2.mp4", "videos/test_2_flip.mp4")

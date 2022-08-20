@@ -1,21 +1,14 @@
 import argparse
 from collections import defaultdict
-import csv
-from email.policy import default
-from itertools import cycle
-from logging import Logger
 import os
 import sys
 from pathlib import Path
 
 import cv2
-import deep_sort
 import torch
 import torch.backends.cudnn as cudnn
 
-from visual_inspector import VisualInspector
 import numpy as np
-
 import clip
 
 FILE = Path(__file__).resolve()
@@ -93,7 +86,7 @@ def run(
     nms_max_overlap = 1.0
     max_cosine_distance = 0.4
     nn_budget = None
-    EXIT_LINE = 400
+    EXIT_LINE = 700
 
     source = str(source)
     save_img = not nosave and not source.endswith(".txt")  # save inference images
@@ -146,7 +139,7 @@ def run(
 
     # initialize tracker
     tracker = Tracker(metric, max_iou_distance=0.7, max_age=50, n_init=10)
-    
+
     # Dataloader
     if webcam:
         view_img = check_imshow()
@@ -172,7 +165,6 @@ def run(
     writers = defaultdict(None)
     bbox_sizes = defaultdict(list)
 
-
     for path, im, im0s, vid_cap, s in dataset:
 
         t1 = time_sync()
@@ -186,9 +178,7 @@ def run(
 
         # Inference
         visualize = (
-            increment_path(save_dir / Path(path).stem, mkdir=True)
-            if visualize
-            else False
+            increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
         )
         pred = model(im, augment=augment, visualize=visualize)
         t3 = time_sync()
@@ -308,22 +298,24 @@ def run(
 
                     bbox_center_y = (int(bbox[1]) + int(bbox[3])) // 2
 
+                    # 
                     if bbox_center_y >= EXIT_LINE:
                         track.state = TrackState.Deleted
                         # print(f"Track {track.track_id} DELETED DELETED DELETED !!!!")
-                        
+
                         video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
-                        
+
                         if save_crop_vids:
                             if track.track_id in writers:
                                 print(
                                     f"\n\n\nreleasing scooter {track.track_id} video writer\n\n\n"
                                 )
                                 writers[track.track_id].close()  # using VideoGear
-                        
-                        
+
                         if track.track_id in writers:
                             # enqueue video for action prediction
+                            print(crops_save_dir)
+                            print(video_path)
                             send_request_action_pred(video_path=str(video_path))
 
                         continue
@@ -343,7 +335,9 @@ def run(
                             print(f"creating vid writer for scooter {track.track_id}")
                             video_path = crops_save_dir / f"scooter_{track.track_id}.mp4"
                             print(video_path)
-                            writers[track.track_id] = WriteGear(output_filename=video_path)
+                            writers[track.track_id] = WriteGear(
+                                output_filename=video_path
+                            )
 
                         # write cropped image to respective video file
                         # TODO pad cropped image to get have uniform dimension
@@ -405,10 +399,6 @@ def run(
         print("releasing vid writer")
         video_writer.release()
 
-    
-    # IMPORTANT to prevent deadlock
-    actionPredManager.shutdown()
-
     # write bbox sizes to csv file
     # with open("cycle_times/bbox_sizes_scooter_only_model.csv", "w") as csv_file:
     #     csv_writer = csv.writer(csv_file, delimiter=",")
@@ -468,9 +458,7 @@ def parse_opt():
     parser.add_argument(
         "--conf-thres", type=float, default=0.25, help="confidence threshold"
     )
-    parser.add_argument(
-        "--iou-thres", type=float, default=0.45, help="NMS IoU threshold"
-    )
+    parser.add_argument("--iou-thres", type=float, default=0.45, help="NMS IoU threshold")
     parser.add_argument(
         "--max-det", type=int, default=1000, help="maximum detections per image"
     )
@@ -485,18 +473,14 @@ def parse_opt():
     parser.add_argument(
         "--save-crop", action="store_true", help="save cropped prediction boxes"
     )
-    parser.add_argument(
-        "--nosave", action="store_true", help="do not save images/videos"
-    )
+    parser.add_argument("--nosave", action="store_true", help="do not save images/videos")
     parser.add_argument(
         "--classes",
         nargs="+",
         type=int,
         help="filter by class: --classes 0, or --classes 0 2 3",
     )
-    parser.add_argument(
-        "--agnostic-nms", action="store_true", help="class-agnostic NMS"
-    )
+    parser.add_argument("--agnostic-nms", action="store_true", help="class-agnostic NMS")
     parser.add_argument("--augment", action="store_true", help="augmented inference")
     parser.add_argument("--visualize", action="store_true", help="visualize features")
     parser.add_argument("--update", action="store_true", help="update all models")
@@ -524,9 +508,7 @@ def parse_opt():
     parser.add_argument(
         "--dnn", action="store_true", help="use OpenCV DNN for ONNX inference"
     )
-    parser.add_argument(
-        "--show-overlay", action="store_true", help="show debug overlay"
-    )
+    parser.add_argument("--show-overlay", action="store_true", help="show debug overlay")
     parser.add_argument(
         "--save-crop-vids", action="store_true", help="show debug overlay"
     )
