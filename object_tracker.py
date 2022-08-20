@@ -86,6 +86,9 @@ def run(
     nms_max_overlap = 1.0
     max_cosine_distance = 0.4
     nn_budget = None
+    
+    # This marks the point where the scooter is assumed to leave the station 
+    # Can change depending on staion and camera location
     EXIT_LINE = 700
 
     source = str(source)
